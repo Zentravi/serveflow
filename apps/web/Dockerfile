@@ -44,12 +44,13 @@ ENV NODE_ENV=production
 
 # Next.js standalone output is self-contained: it includes its own
 # minimal node_modules, the server entry point, and build output.
-# The standalone directory preserves the workspace-relative path
-# (apps/web/), so copying to root gives us apps/web/server.js.
+# outputFileTracingRoot is set to the monorepo root, so the standalone
+# directory preserves the relative path from root (web/), giving
+# web/server.js at the image root.
 COPY --from=build /app/apps/web/.next/standalone ./
 
 EXPOSE 3000
 
-# Server entry point: standalone preserves apps/web/ prefix,
-# so server.js is at apps/web/server.js relative to image root.
-CMD ["node", "apps/web/server.js"]
+# Server entry point: standalone output places server.js at web/server.js
+# relative to image root (matching outputFileTracingRoot = monorepo root).
+CMD ["node", "web/server.js"]

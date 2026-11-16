@@ -71,4 +71,6 @@ COPY --from=build /app/node_modules ./node_modules
 
 EXPOSE 4000
 
-CMD ["node", "apps/api/dist/main"]
+# NestJS build outputs main.js at dist/apps/api/src/main.js
+# (preserving the source directory structure under dist/).
+CMD ["node", "apps/api/dist/apps/api/src/main.js"]
