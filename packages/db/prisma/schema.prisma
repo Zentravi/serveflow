@@ -1,0 +1,402 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Platform-level account. One user can belong to multiple businesses via
+// memberships.
+// ---------------------------------------------------------------------------
+model User {
+  id                        String   @id @default(cuid())
+  email                     String   @unique
+  passwordHash              String
+  name                      String
+  imageUrl                  String?
+  emailVerified             Boolean  @default(false)
+  emailVerifiedAt           DateTime @db.Timestamptz(3)?
+  emailVerificationToken    String?
+  emailVerificationTokenExpires DateTime @db.Timestamptz(3)?
+  passwordResetToken        String?
+  passwordResetTokenExpires DateTime @db.Timestamptz(3)?
+  platformRole              PlatformRole @default(USER)
+  createdAt                 DateTime @db.Timestamptz(3) @default(now())
+  updatedAt                 DateTime @db.Timestamptz(3) @updatedAt
+
+  memberships               Membership[]
+  staffProfiles             Staff[]
+  auditLogs                 AuditLog[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// The tenant. Every business-owned record references businessId.
+// ---------------------------------------------------------------------------
+model Business {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  email             String?
+  phone             String?
+  address           String?
+  timezone          String   @default("Asia/Kolkata")
+  operatingHours    Json
+  bookingAdvanceMin Int      @default(1)
+  bookingAdvanceMax Int      @default(720) // 30 days in hours
+  isPublicBookingEnabled Boolean @default(true)
+  logoUrl           String?
+  status            BusinessStatus @default(ACTIVE)
+  createdAt         DateTime @db.Timestamptz(3) @default(now())
+  updatedAt         DateTime @db.Timestamptz(3) @updatedAt
+  deletedAt         DateTime @db.Timestamptz(3)?
+
+  memberships       Membership[]
+  staff             Staff[]
+  services          Service[]
+  customers         Customer[]
+  appointments      Appointment[]
+  payments          Payment[]
+  notifications     Notification[]
+  availabilityExceptions AvailabilityException[]
+  auditLogs                AuditLog[]
+
+  @@map("businesses")
+}
+
+// ---------------------------------------------------------------------------
+// Links User → Business with a role.
+// ---------------------------------------------------------------------------
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  businessId String
+  role      MembershipRole
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+  @@map("memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Employee profile within a business. Optional link to a User account.
+// ---------------------------------------------------------------------------
+model Staff {
+  id        String   @id @default(cuid())
+  businessId String
+  userId    String?
+  name      String
+  email     String
+  phone     String?
+  role      String
+  bio       String?
+  imageUrl  String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+  updatedAt DateTime @db.Timestamptz(3) @updatedAt
+
+  user      User?     @relation(fields: [userId], references: [id])
+  business  Business  @relation(fields: [businessId], references: [id])
+  staffServices StaffService[]
+  workingHours StaffWorkingHours[]
+  timeOff   StaffTimeOff[]
+  appointments Appointment[]
+
+  @@unique([id, businessId])
+  @@unique([businessId, userId], name: "Staff_businessId_userId_key", map: "staff_business_user_unique")
+  @@index([businessId])
+  @@map("staff")
+}
+
+// ---------------------------------------------------------------------------
+// Many-to-many: which services a staff member is qualified to perform.
+// ---------------------------------------------------------------------------
+model StaffService {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  serviceId String
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+
+  staff   Staff    @relation(fields: [staffId, businessId], references: [id, businessId])
+  service Service  @relation(fields: [serviceId, businessId], references: [id, businessId])
+
+  @@unique([staffId, serviceId, businessId])
+  @@map("staff_services")
+}
+
+// ---------------------------------------------------------------------------
+// Recurring weekly schedule.
+// ---------------------------------------------------------------------------
+model StaffWorkingHours {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  isWorking Boolean  @default(true)
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+
+  staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
+
+  @@unique([staffId, businessId, dayOfWeek])
+  @@index([staffId])
+  @@map("staff_working_hours")
+}
+
+// ---------------------------------------------------------------------------
+// One-off absences.
+// ---------------------------------------------------------------------------
+model StaffTimeOff {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  startTime DateTime @db.Timestamptz(3)
+  endTime   DateTime @db.Timestamptz(3)
+  reason    String?
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+
+  staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
+
+  @@index([staffId])
+  @@map("staff_time_off")
+}
+
+// ---------------------------------------------------------------------------
+// Bookable offering.
+// ---------------------------------------------------------------------------
+model Service {
+  id        String   @id @default(cuid())
+  businessId String
+  name      String
+  description String?
+  price     Decimal
+  durationMinutes Int
+  bufferMinutes Int  @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+  updatedAt DateTime @db.Timestamptz(3) @updatedAt
+
+  business      Business     @relation(fields: [businessId], references: [id])
+  staffServices StaffService[]
+  appointments  Appointment[]
+
+  @@unique([id, businessId])
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@map("services")
+}
+
+// ---------------------------------------------------------------------------
+// Directory entry per business.
+// ---------------------------------------------------------------------------
+model Customer {
+  id        String   @id @default(cuid())
+  businessId String
+  name      String
+  email     String
+  phone     String?
+  notes     String?
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+  updatedAt DateTime @db.Timestamptz(3) @updatedAt
+
+  business   Business   @relation(fields: [businessId], references: [id])
+  appointments Appointment[]
+
+  @@unique([id, businessId])
+  @@unique([businessId, email], name: "Customer_businessId_email_key")
+  @@index([businessId])
+  @@map("customers")
+}
+
+// ---------------------------------------------------------------------------
+// The core booking record.
+// ---------------------------------------------------------------------------
+model Appointment {
+  id                 String          @id @default(cuid())
+  businessId         String
+  customerId         String?
+  staffId            String
+  serviceId          String
+  startTime          DateTime @db.Timestamptz(3)
+  endTime            DateTime @db.Timestamptz(3)
+  status             AppointmentStatus @default(PENDING)
+  price              Decimal
+  customerName       String?
+  customerEmail      String?
+  customerPhone      String?
+  notes              String?
+  cancelledAt        DateTime @db.Timestamptz(3)?
+  cancellationReason String?
+  createdAt          DateTime @db.Timestamptz(3) @default(now())
+  updatedAt          DateTime @db.Timestamptz(3) @updatedAt
+  deletedAt          DateTime @db.Timestamptz(3)?
+
+  business   Business    @relation(fields: [businessId], references: [id])
+  customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
+  staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
+  service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
+  payment    Payment?
+  notifications Notification[]
+
+  @@unique([id, businessId])
+  @@index([businessId])
+  @@index([businessId, startTime])
+  @@index([businessId, status, startTime])
+  @@index([staffId, startTime])
+  @@index([customerId, businessId])
+  @@map("appointments")
+}
+
+// ---------------------------------------------------------------------------
+// Payment record linked to an appointment. No customerId — customer derived
+// through appointment.customerId.
+// ---------------------------------------------------------------------------
+model Payment {
+  id               String       @id @default(cuid())
+  businessId       String
+  appointmentId    String
+  amount           Decimal
+  currency         String       @default("INR")
+  status           PaymentStatus @default(PENDING)
+  provider         String?
+  providerPaymentId String?
+  createdAt        DateTime @db.Timestamptz(3) @default(now())
+  updatedAt        DateTime @db.Timestamptz(3) @updatedAt
+
+  business Business   @relation(fields: [businessId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
+
+  @@unique([appointmentId], name: "Payment_appointmentId_key")
+  @@index([businessId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// Outbound notification record tied to an appointment.
+// ---------------------------------------------------------------------------
+model Notification {
+  id          String        @id @default(cuid())
+  businessId  String
+  appointmentId String
+  channel     NotificationChannel
+  recipient   String
+  type        NotificationType
+  subject     String?
+  content     String
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime @db.Timestamptz(3)?
+  createdAt   DateTime @db.Timestamptz(3) @default(now())
+
+  business Business   @relation(fields: [businessId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
+
+  @@index([businessId])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Business-level closures.
+// ---------------------------------------------------------------------------
+model AvailabilityException {
+  id        String   @id @default(cuid())
+  businessId String
+  startTime DateTime @db.Timestamptz(3)
+  endTime   DateTime @db.Timestamptz(3)
+  title     String?
+  isClosed  Boolean  @default(true)
+  createdAt DateTime @db.Timestamptz(3) @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@map("availability_exceptions")
+}
+
+// ---------------------------------------------------------------------------
+// Immutable append-only audit log.
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id          String   @id @default(cuid())
+  businessId  String?
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @db.Timestamptz(3) @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+enum PlatformRole {
+  SUPER_ADMIN
+  USER
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  APPOINTMENT_UPDATE
+  APPOINTMENT_CANCELLATION
+  APPOINTMENT_REMINDER
+  BUSINESS_ALERT
+}
+
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
