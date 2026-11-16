@@ -37,11 +37,11 @@ RUN npm install --ignore-scripts
 # Copy all source files
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client (output goes to root node_modules/.prisma/)
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-# Build workspace packages (types, config, db, ui)
-RUN npx turbo run build --filter=@serveflow/api!...
+# Build all workspace packages (types, config, db, ui) and the API
+RUN npx turbo run build
 
 # ── Stage 3: Runtime ───────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
@@ -60,13 +60,13 @@ COPY packages/ui/package.json ./packages/ui/package.json
 RUN npm install --omit=dev --ignore-scripts
 
 # Copy built artifacts from build stage
+# @serveflow/api imports @serveflow/types and @serveflow/db at runtime.
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/packages/types/dist ./packages/types/dist
-COPY --from=build /app/packages/config/dist ./packages/config/dist
 COPY --from=build /app/packages/db/dist ./packages/db/dist
-COPY --from=build /app/packages/db/node_modules/.prisma ./packages/db/node_modules/.prisma
-COPY --from=build /app/packages/db/prisma ./packages/db/prisma
-COPY --from=build /app/packages/ui/dist ./packages/ui/dist
+
+# Root node_modules includes the generated Prisma client (.prisma/client)
+# produced by `prisma generate` in the build stage.
 COPY --from=build /app/node_modules ./node_modules
 
 EXPOSE 4000
