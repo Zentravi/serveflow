@@ -53,7 +53,7 @@ erDiagram
     APPOINTMENT }o--|| STAFF : "served by"
     APPOINTMENT }o--|| SERVICE : "booked for"
     APPOINTMENT ||--}o PAYMENT : "has at most one"
-    APPOINTMENT ||--|{ NOTIFICATION : "triggers"
+    APPOINTMENT ||--o{ NOTIFICATION : "triggers zero or more"
 
     STAFF_SERVICE }o--|| STAFF : "staff"
     STAFF_SERVICE }o--|| SERVICE : "service"

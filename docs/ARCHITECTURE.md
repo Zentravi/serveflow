@@ -134,9 +134,10 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 - **Domain arrangement:** Frontend (Next.js) and backend (NestJS) run on separate origins:
   - Frontend: `web.serveflow.app` (or `localhost:3000` in dev)
   - Backend: `api.serveflow.app` (or `localhost:4000` in dev)
-  - The browser makes direct cross-origin requests from the frontend to the backend.
+  - The browser makes direct cross-origin requests from the frontend to the backend with `credentials: 'include'` so the `sessionId` cookie is sent.
+  - Local development: both `localhost:3000` and `localhost:4000` resolve to `localhost` (same origin for cookie purposes); CORS allows `http://localhost:3000`.
 - Authentication: HTTP-only, secure session cookie (`sessionId`). Token stored in cookies, never in localStorage.
-- **Cookie behavior for cross-origin requests:** Because frontend and backend are on different origins, the `sessionId` cookie is set with `SameSite=None; Secure; HttpOnly` so it is sent on cross-origin requests from the browser to the backend API. `SameSite=Strict` alone would prevent cookies from being sent on cross-origin fetch/XHR requests and break authentication.
+- **Cookie behavior for same-site cross-origin requests:** Frontend (`web.serveflow.app`) and backend (`api.serveflow.app`) are different origins but the **same site** (`serveflow.app`). The `sessionId` cookie is set with `SameSite=Lax; Secure; HttpOnly`, so it is sent on same-site cross-origin requests (e.g., `web.serveflow.app` → `api.serveflow.app`) but not on cross-site requests. `SameSite=None` is not required because the domains are same-site, not cross-site.
 - **CORS:** NestJS backend configures CORS to allow requests only from the configured frontend origin(s) (`FRONTEND_URL` env var), with `credentials: true` so cookies are sent. No wildcard origins.
 - Business context: resolved server-side from the authenticated user's active membership; never from a client-supplied `businessId`.
 - OpenAPI/Swagger docs served at `/api/docs` (backend) for contract visibility.
@@ -148,17 +149,17 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 **Chosen strategy:** HTTP-only session cookies with a server-side session store (PostgreSQL-backed, not Redis). A single `sessionId` cookie is issued on login and validated on every request.
 
 - **Registration** → email verification required before full access (business creation or booking).
-- **Login** → validate credentials; create a server-side session record; issue `sessionId` in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie; resolve the user's active business context server-side from membership.
+- **Login** → validate credentials; create a server-side session record; issue `sessionId` in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie; resolve the user's active business context server-side from membership.
 - **Logout** → delete the server-side session record and clear the `sessionId` cookie.
 - **Password recovery** → time-limited, single-use reset token emailed to the user; token expires after 1 hour.
 - **Password hashing:** bcrypt with cost factor ≥ 10.
-- **Cookie security:** `HttpOnly` (no JS access), `Secure` (HTTPS only), `SameSite=None` (required for cross-origin cookie delivery between frontend and backend on separate domains).
+- **Cookie security:** `HttpOnly` (no JS access), `Secure` (HTTPS only), `SameSite=Lax` (same-site cross-origin requests send the cookie; cross-site requests do not, mitigating cross-site CSRF).
 - **Session expiration:** sessions expire after 14 days of inactivity; absolute lifetime of 30 days.
 - **Session renewal:** activity resets the inactivity timer; no separate refresh token is used.
-- **CSRF protection:** Because `SameSite=None` allows the cookie to be sent on cross-origin requests, `SameSite=None` alone does NOT prevent CSRF. Additional CSRF protection is required:
+- **CSRF protection:** `SameSite=Lax` prevents the cookie from being sent on cross-site requests, mitigating cross-site CSRF. However, same-site cross-origin requests (e.g., `web.serveflow.app` → `api.serveflow.app`) DO include the cookie, so additional CSRF protection is required for state-changing operations:
   1. **Origin/Referer validation:** The backend validates the `Origin` and/or `Referer` header on all state-changing requests (POST, PUT, PATCH, DELETE). Requests with missing, mismatched, or unexpected origins are rejected with `403`.
-  2. **CSRF token (double-submit pattern):** For state-changing operations, the frontend includes a `X-CSRF-Token` header with a cryptographically random token. The backend validates this token against the value stored in the server-side session. The token is read by the frontend from a non-HTTP-only `csrf_token` cookie (set alongside `sessionId`) and included in the request header.
-  3. **SameSite=None + CSRF token** together provide defense-in-depth against cross-site request forgery.
+  2. **CSRF token (synchronizer pattern):** The server generates a cryptographically random CSRF token and stores it in the server-side session. The token is returned to the client in the login response (and refreshed on each session rotation). The frontend includes it as an `X-CSRF-Token` header on all state-changing requests. The backend compares the header value against the session-stored token. This is a **synchronizer token** pattern (server stores the token in the session), not a double-submit-cookie pattern (which would require a non-HttpOnly cookie and no server-side storage).
+  3. **Credentials:** Browser requests include `credentials: 'include'` so the `sessionId` cookie is sent on same-site cross-origin requests to the backend API.
 - **Rate limiting:** auth endpoints rate-limited (5 attempts/minute per IP); public booking endpoints rate-limited (30 requests/minute per IP).
 - **Security headers:** CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy.
 - No passwords, API keys, or DB credentials hardcoded — all via environment variables.
