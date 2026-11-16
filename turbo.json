@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "apps/web/.next/**",
+        "apps/api/dist/**",
+        "packages/ui/dist/**",
+        "packages/config/dist/**",
+        "packages/db/dist/**",
+        "packages/types/dist/**"
+      ],
+      "cache": true
+    },
+    "dev": {
+      "cache": false
+    },
+    "lint": {
+      "outputs": []
+    },
+    "type-check": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "db:generate": {
+      "outputs": []
+    },
+    "db:migrate": {
+      "outputs": []
+    },
+    "db:studio": {
+      "cache": false
+    }
+  },
+  "globalEnv": [
+    "DATABASE_URL",
+    "FRONTEND_URL",
+    "BACKEND_URL",
+    "SESSION_SECRET",
+    "NODE_ENV"
+  ],
+  "globalDependencies": [".env.example"]
+}
