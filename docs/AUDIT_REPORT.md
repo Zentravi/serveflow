@@ -5,7 +5,7 @@
 **Base commit:** `0de67da2d0537f49ffb8ca1c61deec2a049286d8`  
 **Audited documents:** PRD.md, ARCHITECTURE.md, DATABASE.md, API.md, UI-UX.md, ROADMAP.md  
 **Audit date:** 2026-11-15  
-**Status:** Findings presented — awaiting approval before Phase 2
+**Status:** Corrections applied — awaiting final review and approval before Phase 2
 
 ---
 
@@ -339,12 +339,12 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 
 | ID | Severity | Issue | Resolution | Document(s) updated |
 |----|----------|-------|------------|---------------------|
-| CRIT-1 | Critical | Prisma exclusion constraint not natively supported | Documented as raw SQL migration in `packages/db/prisma/migrations/`, reviewed during migration review, preserved across resets | DATABASE.md, ARCHITECTURE.md, ROADMAP.md |
+| CRIT-1 | Critical | Prisma exclusion constraint not natively supported | Documented as raw SQL migration with `CREATE EXTENSION IF NOT EXISTS btree_gist`, conditional `WHERE (status IN ('PENDING', 'CONFIRMED'))` clause so cancelled/completed/no-show appointments don't block future bookings, slot-occupying statuses explicitly defined, migration preservation through `prisma migrate dev` resets documented | DATABASE.md, ARCHITECTURE.md, ROADMAP.md |
 | CRIT-2 | Critical | `Staff.userId` globally unique prevents multi-business staff | Removed global uniqueness; `(businessId, userId)` unique constraint allows one user to be staff at multiple businesses | DATABASE.md |
 | PRD-1 | High | Active business selection mechanism unspecified | Defined `POST /api/memberships/active` with server-side membership verification; active business stored server-side in session | PRD.md, ARCHITECTURE.md, API.md |
 | PRD-2 | High | Redis + BullMQ mandated at MVP | Deferred to Phase 6; MVP uses synchronous email sending with configurable provider | PRD.md, ARCHITECTURE.md, ROADMAP.md |
 | ARCH-2 | High | Auth strategy ambiguous (session/JWT/Redis) | Selected HTTP-only `sessionId` cookie + PostgreSQL server-side session store; alternatives removed | ARCHITECTURE.md, API.md |
-| ARCH-3 | High | No CORS configuration | Documented CORS with `FRONTEND_URL` env var, `credentials: true`, no wildcard origins | ARCHITECTURE.md |
+| ARCH-3 | High | No CORS/CSRF configuration | Documented CORS with `FRONTEND_URL`, `credentials: true`, no wildcard origins; cross-origin domain arrangement specified (`web.serveflow.app` → `api.serveflow.app`); `SameSite=None` for cross-origin cookie delivery; CSRF protection via Origin/Referer validation + double-submit CSRF token header | ARCHITECTURE.md |
 | ARCH-4 | High | No RLS defense-in-depth | Documented as optional defense-in-depth decision; primary enforcement is application-layer scoping with audit logging | ARCHITECTURE.md, DATABASE.md |
 | SEC-1 | High | Active business resolution ambiguous for multi-business users | Backend independently verifies membership on every request; client cannot spoof business context | PRD.md, ARCHITECTURE.md, API.md |
 | SEC-2 | High | STAFF can book appointments for any staff member | STAFF restricted to own staff profile; only OWNER/ADMIN can book for others | API.md |
@@ -374,13 +374,17 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 | PRD-3 | Medium | File upload/storage unspecified | Added local filesystem storage at MVP; S3-compatible option | PRD.md |
 | PRD-4 | Low | Cancellation/refund rules missing | Added business-configurable cancellation window and refund eligibility | PRD.md |
 | PRD-5 | Low | Acceptance criteria vague | Made acceptance criteria specific (cross-tenant test, concurrency test, terminal states, migration review, security review) | PRD.md |
-| BK-1 through BK-8 | Critical–Low | Booking engine details | Clarified buffer inclusion in endTime, UTC storage, DST handling, advance booking limits, rescheduling conflicts, any-available-staff endpoint | DATABASE.md, API.md |
+| BK-1 through BK-8 | Critical–Low | Booking engine details | Clarified buffer inclusion in endTime, UTC storage, DST handling, advance booking limits, rescheduling conflicts, any-available-staff endpoint, SERIALIZABLE transaction strategy, exclusion constraint conditional on active statuses, serialization/exclusion violation handling | DATABASE.md, API.md |
+| API-7 | Medium | Authenticated vs public availability distinction unclear | Clarified `/api/appointments/availability` (auth, session businessId) vs `/api/booking/:businessSlug/availability` (public, slug-resolved business) | API.md |
+| DB-10 | Medium | ER diagram Appointment-Payment cardinality | Changed from `||--|{` (one-to-many) to `||--}o` (one-to-zero-or-one) matching unique `Payment.appointmentId` constraint | DATABASE.md |
+| DB-11 | Low | Appointment status history tracking | Clarified that `AuditLog` records status changes (`entityType='Appointment'`, `action='status_change'`); `AppointmentStatusHistory` remains open decision | DATABASE.md |
+| PRD-6 | Medium | Feature priorities vs roadmap phase alignment | Updated P0 to "delivered by end of Phase 6"; P1 to "post-MVP"; P2 to "later" to match ROADMAP phase sequencing | PRD.md, ROADMAP.md |
 
 ### Remaining open decisions
 
 | ID | Severity | Issue | Status | Notes |
 |----|----------|-------|--------|-------|
-| ARCH-5 | Medium | Frontend↔backend communication pattern | Open | Direct browser-to-API with CORS vs. Next.js server-side proxy not finalized |
+| ARCH-5 | Medium | Frontend↔backend communication pattern | Partially resolved | Direct browser-to-API with CORS specified (separate origins: `web.serveflow.app` → `api.serveflow.app`). Next.js server-side proxy (BFF pattern) remains an alternative not yet ruled out. |
 | ARCH-6 | Medium | API versioning strategy | Open | `/api/v1` reserved but no version header or URL prefix strategy defined |
 | DB-4 | Medium | `operatingHours` as JSON vs. structured table | Open | JSON kept for flexibility; structured `BusinessWorkingHours` table can be added later |
 | DB-6 | Medium | `AppointmentStatusHistory` entity | Open | AuditLog covers status changes; dedicated entity can be added if needed |
@@ -390,6 +394,8 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 
 **READY AFTER MINOR CORRECTIONS — CORRECTIONS APPLIED**
 
-All Critical and High-severity issues from the audit have been resolved. The six planning documents are now consistent with one another and technically sound. The project is ready for review and approval before proceeding to Phase 2 (Project Foundation).
+All Critical and High-severity issues from the original audit have been resolved and documented in the planning documents. Two additional High-severity findings from this review round (exclusion constraint conditionality, CSRF protection) have also been addressed.
+
+The six planning documents are now consistent with one another and technically sound. Remaining open decisions (listed above) are non-blocking for Phase 2.
 
 **Status:** Documentation corrections complete. Awaiting review and approval before Phase 2. No implementation code has been generated. No changes merged to main.

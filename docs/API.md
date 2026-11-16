@@ -150,9 +150,11 @@ All endpoints below require authentication and an active business membership unl
 | PATCH | `/api/appointments/:id` | Update / reschedule (cancels old slot, creates new in same transaction) | OWNER, ADMIN |
 | PATCH | `/api/appointments/:id/status` | Change status (validated transitions) | OWNER, ADMIN, STAFF |
 | DELETE | `/api/appointments/:id` | Cancel | OWNER, ADMIN |
-| GET | `/api/appointments/availability` | Server-calculated slots for date+staff+service | auth required |
+| GET | `/api/appointments/availability` | Server-calculated available slots for a staff member on a date (dashboard/authenticated use). `businessId` resolved from session. | auth required |
 
-Availability query params: `date`, `staffId`, `serviceId`. `businessId` resolved from session.
+Availability query params: `date`, `staffId`, `serviceId`. `businessId` resolved from the caller's active membership.
+
+**Distinction from public booking availability:** `/api/appointments/availability` is for authenticated dashboard users managing appointments within their business context. `/api/booking/:businessSlug/availability` is for unauthenticated public booking portal users, where the business is resolved from the URL slug.
 
 ### Available staff discovery
 

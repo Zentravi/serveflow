@@ -140,9 +140,9 @@ The architecture is designed to be extensible to additional industries beyond be
 
 ## 6. Feature priorities
 
-**P0 (must have, Phase 1–5):** Multi-tenancy, auth, business/profile, services, staff, customers, appointments, booking engine with concurrency safety, public booking portal, payments tracking, notifications (configurable), analytics from real data, super-admin, tests, Docker/CI.
+**P0 (must have, delivered by end of Phase 6):** Multi-tenancy, auth, business/profile, services, staff, customers, appointments, booking engine with concurrency safety, public booking portal, payments tracking, notifications (synchronous, configurable provider), analytics from real data, super-admin, tests, Docker/CI. P0 features are implemented across Phases 2–6 and validated in Phase 7.
 
-**P1 (should have, Phase 6–7):** Email/SMS notification provider integrations, advanced calendar views, recurring appointments, staff time-off calendar, export/reports.
+**P1 (should have, post-MVP):** Email/SMS notification provider integrations (BullMQ background jobs), advanced calendar views, recurring appointments, staff time-off calendar, export/reports.
 
 **P2 (could have, later):** AI-powered business insights, SMS reminders, online payments (Stripe), multi-location businesses, mobile apps.
 

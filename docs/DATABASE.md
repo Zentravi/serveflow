@@ -52,7 +52,7 @@ erDiagram
     APPOINTMENT }o--|| CUSTOMER : "made by"
     APPOINTMENT }o--|| STAFF : "served by"
     APPOINTMENT }o--|| SERVICE : "booked for"
-    APPOINTMENT ||--|{ PAYMENT : "has"
+    APPOINTMENT ||--}o PAYMENT : "has at most one"
     APPOINTMENT ||--|{ NOTIFICATION : "triggers"
 
     STAFF_SERVICE }o--|| STAFF : "staff"
@@ -246,6 +246,8 @@ erDiagram
         String userAgent
         DateTime createdAt
     }
+
+**Note on appointment status history:** Appointment status changes are recorded in `AuditLog` with `entityType = 'Appointment'`, `action = 'status_change'`, and `oldValues`/`newValues` capturing the before/after status. There is no separate `AppointmentStatusHistory` entity; `AuditLog` serves as the immutable status-change audit trail. A dedicated `AppointmentStatusHistory` table remains an open decision if more granular status transition tracking is needed.
 ```
 
 ---
@@ -369,42 +371,67 @@ Two concurrent requests may both see a slot as available and attempt to create t
 - **Daylight-saving transitions**: Slot calculation converts business-local operating hours and staff working hours to UTC using the business `timezone` at calculation time. DST boundary shifts are handled by the timezone library during conversion; stored UTC values are unaffected.
 - **Minimum/maximum advance booking**: `Business` settings include `bookingAdvanceMin` and `bookingAdvanceMax` (in hours) to prevent booking in the past or too far in the future.
 
-### 6.3 Strategy
+### 6.3 Slot-occupying statuses
 
-1. **Server-side availability recalculation** at booking time (never trust frontend-computed slots).
-2. **Transaction with `SERIALIZABLE` isolation** (or `REPEATABLE READ` + explicit `SELECT ... FOR UPDATE` locking) around:
-   - read existing appointments overlapping the requested `[startTime, endTime]` for the staff member,
-   - verify none exist,
-   - insert the new appointment.
-3. **PostgreSQL exclusion constraint** (custom SQL migration, not declarable in Prisma schema):
+Only appointments in `PENDING` or `CONFIRMED` status occupy a time slot and block overlapping bookings. `CANCELLED`, `COMPLETED`, and `NO_SHOW` appointments do not occupy a slot — `CANCELLED` frees the slot immediately; `COMPLETED` and `NO_SHOW` are terminal states in the past.
+
+### 6.4 Transaction strategy
+
+**Definitive strategy:** `SERIALIZABLE` isolation level for the booking transaction. `SELECT ... FOR UPDATE` is used only to lock existing overlapping appointment rows if any are found; it does **not** by itself prevent phantom inserts (two concurrent transactions that both see no overlapping row can both proceed to insert). The PostgreSQL exclusion constraint is the final backstop that guarantees exactly one booking per slot.
+
+Transaction flow:
+1. Open transaction with `SERIALIZABLE` isolation.
+2. Validate service, business, staff exist and are active.
+3. Recalculate availability server-side (operating hours, staff working hours, time off, existing appointments, service duration, buffer, timezone, selected date).
+4. `SELECT ... FOR UPDATE` on existing appointments for the staff member overlapping `[startTime, endTime]` with status in (`PENDING`, `CONFIRMED`) — locks any conflicting rows if they exist.
+5. If a conflicting row is found, abort with `409 Conflict`.
+6. Insert the new appointment with status `PENDING`.
+7. Commit. If PostgreSQL raises a serialization failure or exclusion constraint violation, abort with `409 Conflict`.
+
+### 6.5 PostgreSQL exclusion constraint (custom SQL migration)
+
+The `btree_gist` extension is required for the equality operator on `staffId` within a GiST index.
 
 ```sql
+-- Enable btree_gist for scalar-type GiST exclusion constraints
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- Prevent overlapping active appointments for the same staff member.
+-- Only PENDING and CONFIRMED appointments occupy a time slot.
+-- CANCELLED, COMPLETED, and NO_SHOW appointments do not block future bookings,
+-- matching cancellation and rescheduling behavior.
 ALTER TABLE "Appointment"
   ADD CONSTRAINT appointment_no_overlap
   EXCLUDE USING gist (
     "staffId" WITH =,
     tstzrange("startTime", "endTime") WITH &&
-  );
+  )
+  WHERE (status IN ('PENDING', 'CONFIRMED'));
 ```
 
-This constraint is managed as a raw SQL migration file in `packages/db/prisma/migrations/`. It is reviewed during migration review, applied via `prisma migrate deploy`, and preserved across `prisma migrate dev` resets by including it in the migration history. It is the database-level backstop: PostgreSQL itself rejects any overlapping appointment for the same staff, regardless of race conditions.
+This constraint is managed as a raw SQL migration file in `packages/db/prisma/migrations/`. It is reviewed during migration review, applied via `prisma migrate deploy`, and preserved across `prisma migrate dev` resets by including it in the migration history. Because Prisma cannot declaratively express `EXCLUDE USING gist`, the raw SQL must be manually re-added if a migration reset drops it. It is the database-level backstop: PostgreSQL itself rejects any overlapping active appointment for the same staff, regardless of race conditions.
 
-4. On conflict (exclusion violation or application-level conflict), return `409 Conflict` with a meaningful message ("This time slot is no longer available").
+### 6.6 Conflict handling
 
-### 6.4 Rescheduling conflicts
+- **Exclusion violation** (overlapping active appointment for same staff): PostgreSQL raises an exclusion constraint error. The transaction is aborted; the API returns `409 Conflict` with message "This time slot is no longer available."
+- **Serialization failure** (concurrent transaction modified data read by this transaction): PostgreSQL raises a serialization error. The transaction is aborted; the API returns `409 Conflict` and the client may retry with a different slot.
+- **Application-level conflict** (availability check fails before insert): API returns `409 Conflict` with a specific reason (outside operating hours, staff time off, service inactive, etc.).
 
-Rescheduling cancels the old appointment (setting `status = CANCELLED`, freeing its time range) and creates the new appointment in the same transaction. The exclusion constraint prevents two rescheduling operations from colliding on the same freed slot — only one will succeed, the other receives `409 Conflict`.
+### 6.7 Rescheduling conflicts
 
-### 6.5 Concurrent booking attempts
+Rescheduling cancels the old appointment (setting `status = CANCELLED`, freeing its time range) and creates the new appointment in the same `SERIALIZABLE` transaction. Because `CANCELLED` appointments are excluded from the exclusion constraint's `WHERE` clause, cancelling the old appointment immediately frees its slot. The exclusion constraint prevents two rescheduling operations from colliding on the same freed slot — only one will succeed, the other receives `409 Conflict`.
+
+### 6.8 Concurrent booking attempts
 
 When two requests target the same staff slot simultaneously:
-- Both enter the transaction and check for overlaps.
-- PostgreSQL's exclusion constraint (or `SELECT ... FOR UPDATE` locking) serializes them.
+- Both enter `SERIALIZABLE` transactions and check for overlaps.
+- The first to commit inserts successfully.
+- The second's insert violates the exclusion constraint (or triggers a serialization failure); PostgreSQL rejects it.
 - Exactly one insert succeeds; the other receives a `409 Conflict`.
 
-### 6.6 Testing
+### 6.9 Testing
 
-Integration tests cover: concurrent booking requests, exclusion constraint enforcement, rescheduling conflicts, DST boundary slot calculations, and buffer enforcement.
+Integration tests cover: concurrent booking requests (exactly one success, N conflicts), exclusion constraint enforcement, rescheduling conflicts, DST boundary slot calculations, buffer enforcement, serialization failure handling, and cancelled-appointment slot release.
 
 ---
 

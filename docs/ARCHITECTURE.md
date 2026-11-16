@@ -131,7 +131,12 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 }
 ```
 
-- Authentication: HTTP-only, secure, same-site session cookie (`sessionId`). Token stored in cookies, never in localStorage.
+- **Domain arrangement:** Frontend (Next.js) and backend (NestJS) run on separate origins:
+  - Frontend: `web.serveflow.app` (or `localhost:3000` in dev)
+  - Backend: `api.serveflow.app` (or `localhost:4000` in dev)
+  - The browser makes direct cross-origin requests from the frontend to the backend.
+- Authentication: HTTP-only, secure session cookie (`sessionId`). Token stored in cookies, never in localStorage.
+- **Cookie behavior for cross-origin requests:** Because frontend and backend are on different origins, the `sessionId` cookie is set with `SameSite=None; Secure; HttpOnly` so it is sent on cross-origin requests from the browser to the backend API. `SameSite=Strict` alone would prevent cookies from being sent on cross-origin fetch/XHR requests and break authentication.
 - **CORS:** NestJS backend configures CORS to allow requests only from the configured frontend origin(s) (`FRONTEND_URL` env var), with `credentials: true` so cookies are sent. No wildcard origins.
 - Business context: resolved server-side from the authenticated user's active membership; never from a client-supplied `businessId`.
 - OpenAPI/Swagger docs served at `/api/docs` (backend) for contract visibility.
@@ -147,10 +152,13 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 - **Logout** → delete the server-side session record and clear the `sessionId` cookie.
 - **Password recovery** → time-limited, single-use reset token emailed to the user; token expires after 1 hour.
 - **Password hashing:** bcrypt with cost factor ≥ 10.
-- **Cookie security:** `HttpOnly` (no JS access), `Secure` (HTTPS only), `SameSite=Strict` (CSRF mitigation for cross-site requests).
+- **Cookie security:** `HttpOnly` (no JS access), `Secure` (HTTPS only), `SameSite=None` (required for cross-origin cookie delivery between frontend and backend on separate domains).
 - **Session expiration:** sessions expire after 14 days of inactivity; absolute lifetime of 30 days.
 - **Session renewal:** activity resets the inactivity timer; no separate refresh token is used.
-- **CSRF protection:** `SameSite=Strict` on the session cookie prevents cross-site request forgery for cross-origin requests. For same-site state-changing operations, the frontend includes the `sessionId` cookie automatically; additional CSRF tokens are not required given SameSite=Strict.
+- **CSRF protection:** Because `SameSite=None` allows the cookie to be sent on cross-origin requests, `SameSite=None` alone does NOT prevent CSRF. Additional CSRF protection is required:
+  1. **Origin/Referer validation:** The backend validates the `Origin` and/or `Referer` header on all state-changing requests (POST, PUT, PATCH, DELETE). Requests with missing, mismatched, or unexpected origins are rejected with `403`.
+  2. **CSRF token (double-submit pattern):** For state-changing operations, the frontend includes a `X-CSRF-Token` header with a cryptographically random token. The backend validates this token against the value stored in the server-side session. The token is read by the frontend from a non-HTTP-only `csrf_token` cookie (set alongside `sessionId`) and included in the request header.
+  3. **SameSite=None + CSRF token** together provide defense-in-depth against cross-site request forgery.
 - **Rate limiting:** auth endpoints rate-limited (5 attempts/minute per IP); public booking endpoints rate-limited (30 requests/minute per IP).
 - **Security headers:** CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy.
 - No passwords, API keys, or DB credentials hardcoded — all via environment variables.
