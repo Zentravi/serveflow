@@ -407,13 +407,15 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 | DB-16 | High | Guest booking customerId required | Made `customerId` nullable (Option A); appointment carries snapshot contact fields for guest bookings; PRD/API/DATABASE agree | DATABASE.md, PRD.md, API.md |
 | DB-17 | High | StaffWorkingHours/StaffTimeOff missing composite FKs | Added `businessId` to both models with composite `@relation(fields: [staffId, businessId], references: [id, businessId])` | DATABASE.md |
 | DB-18 | Medium | Prisma exclusion constraint limitation | Documented that `appointment_no_overlap` (`EXCLUDE USING gist`) requires raw SQL migration outside Prisma schema; migration preservation documented | DATABASE.md, ARCHITECTURE.md, ROADMAP.md |
+| DB-19 | High | Payment.customerId redundant | Removed `customerId` from Payment model; customer derived through `appointment.customerId`. ER diagram updated to remove Payment-Customer relationship. | DATABASE.md |
+| DB-20 | Medium | API versioning unspecified | Set all endpoints to `/api/v1`. Updated API.md conventions table, all endpoint paths, and ARCHITECTURE.md §4. | API.md, ARCHITECTURE.md |
 
 ### Remaining open decisions
 
 | ID | Severity | Issue | Status | Notes |
 |----|----------|-------|--------|-------|
 | ARCH-5 | Medium | Frontend↔backend communication pattern | Partially resolved | Direct browser-to-API with CORS specified (separate origins: `web.serveflow.app` → `api.serveflow.app`). Next.js server-side proxy (BFF pattern) remains an alternative not yet ruled out. |
-| ARCH-6 | Medium | API versioning strategy | Open | `/api/v1` reserved but no version header or URL prefix strategy defined |
+| ARCH-6 | Medium | API versioning strategy | Resolved | All endpoints versioned as `/api/v1` from the first endpoint. Documented in API.md conventions table and ARCHITECTURE.md §4. |
 | DB-4 | Medium | `operatingHours` as JSON vs. structured table | Open | JSON kept for flexibility; structured `BusinessWorkingHours` table can be added later |
 | DB-6 | Medium | `AppointmentStatusHistory` entity | Open | AuditLog covers status changes; dedicated entity can be added if needed |
 | UI-6 | Low | Booking portal visual differentiation | Open | Described as "lighter, marketing-oriented"; specific component subset not defined |

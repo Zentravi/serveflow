@@ -119,6 +119,7 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 ## 4. Frontend ↔ backend communication
 
 - REST over HTTPS/HTTP. JSON request/response bodies.
+- **API versioning:** All endpoints are versioned as `/api/v1` from the first endpoint.
 - Standardized error envelope:
 
 ```json

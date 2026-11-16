@@ -36,6 +36,7 @@ erDiagram
     MEMBERSHIP }o--|| BUSINESS : "links to"
 
     STAFF }o--|| BUSINESS : "belongs to"
+    STAFF }o--o| USER : "linked to (optional)"
     STAFF ||--o{ STAFF_SERVICE : "performs"
     STAFF ||--o{ STAFF_WORKING_HOURS : "has"
     STAFF ||--o{ STAFF_TIME_OFF : "takes"
@@ -66,244 +67,275 @@ erDiagram
 
     PAYMENT }o--|| BUSINESS : "business"
     PAYMENT }o--|| APPOINTMENT : "appointment"
-    PAYMENT }o--o| CUSTOMER : "customer (optional)"
+```
 
-    USER {
-        id                        String   @id @default(cuid())
-        email                     String   @unique
-        passwordHash              String
-        name                      String
-        imageUrl                  String?
-        emailVerified             Boolean  @default(false)
-        emailVerifiedAt           DateTime?
-        emailVerificationToken    String?
-        emailVerificationTokenExpires DateTime?
-        passwordResetToken        String?
-        passwordResetTokenExpires DateTime?
-        // Platform-level role: SUPER_ADMIN or USER. Separate from business-scoped MembershipRole.
-        platformRole              PlatformRole @default(USER)
-        createdAt                 DateTime @default(now())
-        updatedAt                 DateTime @updatedAt
-    }
+### 2.1 Illustrative Prisma Model Snippets
 
-    BUSINESS {
-        id                String   @id @default(cuid())
-        name              String
-        slug              String   @unique
-        email             String?
-        phone             String?
-        address           String?
-        timezone          String   @default("Asia/Kolkata")
-        operatingHours    Json     // Map of day-of-week (0–6) → open/close intervals
-        isPublicBookingEnabled Boolean @default(true)
-        logoUrl           String?
-        status            BusinessStatus @default(ACTIVE)
-        createdAt         DateTime @default(now())
-        updatedAt         DateTime @updatedAt
-        deletedAt         DateTime?
-    }
+**These snippets are illustrative only.** They follow Prisma syntax conventions but have NOT been validated with `prisma validate`. No `schema.prisma` file exists in the repository yet. Do not treat these as an executable schema.
 
-    MEMBERSHIP {
-        id        String   @id @default(cuid())
-        userId    String
-        businessId String
-        role      MembershipRole
-        createdAt DateTime @default(now())
+```prisma
+model User {
+  id                        String   @id @default(cuid())
+  email                     String   @unique
+  passwordHash              String
+  name                      String
+  imageUrl                  String?
+  emailVerified             Boolean  @default(false)
+  emailVerifiedAt           DateTime?
+  emailVerificationToken    String?
+  emailVerificationTokenExpires DateTime?
+  passwordResetToken        String?
+  passwordResetTokenExpires DateTime?
+  platformRole              PlatformRole @default(USER)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-        user    User   @relation(fields: [userId], references: [id])
-        business Business @relation(fields: [businessId], references: [id])
+  memberships               Membership[]
+  staffProfiles             Staff[]
+}
 
-        @@unique([userId, businessId])
-    }
+model Business {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  email             String?
+  phone             String?
+  address           String?
+  timezone          String   @default("Asia/Kolkata")
+  operatingHours    Json
+  isPublicBookingEnabled Boolean @default(true)
+  logoUrl           String?
+  status            BusinessStatus @default(ACTIVE)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
 
-    STAFF {
-        id        String   @id @default(cuid())
-        businessId String
-        userId    String?   // Nullable: staff can exist without a login account
-        name      String
-        email     String
-        phone     String?
-        role      String
-        bio       String?
-        imageUrl  String?
-        isActive  Boolean   @default(true)
-        createdAt DateTime  @default(now())
-        updatedAt DateTime  @updatedAt
+  memberships       Membership[]
+  staff             Staff[]
+  services          Service[]
+  customers         Customer[]
+  appointments      Appointment[]
+  payments          Payment[]
+  notifications     Notification[]
+  availabilityExceptions AvailabilityException[]
+}
 
-        // Composite uniqueness: one user account → one staff profile per business
-        // Multiple staff can have null userId for the same business (guest staff)
-        @@unique([id, businessId])
-        @@unique([businessId, userId], name: "Staff_businessId_userId_key", map: "staff_business_user_unique")
-    }
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  businessId String
+  role      MembershipRole
+  createdAt DateTime @default(now())
 
-    STAFF_SERVICE {
-        id        String   @id @default(cuid())
-        staffId   String
-        businessId String
-        serviceId String
-        createdAt DateTime @default(now())
+  user    User    @relation(fields: [userId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
 
-        staff   Staff    @relation(fields: [staffId, businessId], references: [id, businessId])
-        service Service  @relation(fields: [serviceId, businessId], references: [id, businessId])
+  @@unique([userId, businessId])
+}
 
-        // Composite FKs prevent linking staff and services from different businesses
-        @@unique([staffId, serviceId, businessId])
-    }
+model Staff {
+  id        String   @id @default(cuid())
+  businessId String
+  userId    String?
+  name      String
+  email     String
+  phone     String?
+  role      String
+  bio       String?
+  imageUrl  String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-    STAFF_WORKING_HOURS {
-        id        String   @id @default(cuid())
-        staffId   String
-        businessId String
-        dayOfWeek Int
-        startTime String   // "HH:MM" local time
-        endTime   String   // "HH:MM" local time
-        isWorking Boolean @default(true)
-        createdAt DateTime @default(now())
+  user      User?     @relation(fields: [userId], references: [id])
+  business  Business  @relation(fields: [businessId], references: [id])
+  staffServices StaffService[]
+  workingHours StaffWorkingHours[]
+  timeOff   StaffTimeOff[]
+  appointments Appointment[]
 
-        staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
+  @@unique([id, businessId])
+  @@unique([businessId, userId], name: "Staff_businessId_userId_key", map: "staff_business_user_unique")
+}
 
-        @@unique([staffId, businessId, dayOfWeek])
-    }
+model StaffService {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  serviceId String
+  createdAt DateTime @default(now())
 
-    STAFF_TIME_OFF {
-        id        String   @id @default(cuid())
-        staffId   String
-        businessId String
-        startTime DateTime // UTC timestamptz
-        endTime   DateTime // UTC timestamptz
-        reason    String?
-        createdAt DateTime @default(now())
+  staff   Staff    @relation(fields: [staffId, businessId], references: [id, businessId])
+  service Service  @relation(fields: [serviceId, businessId], references: [id, businessId])
 
-        staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
-    }
+  @@unique([staffId, serviceId, businessId])
+}
 
-    SERVICE {
-        id        String   @id @default(cuid())
-        businessId String
-        name      String
-        description String?
-        price     Decimal
-        durationMinutes Int
-        bufferMinutes Int  @default(0)
-        isActive  Boolean  @default(true)
-        createdAt DateTime @default(now())
-        updatedAt DateTime @updatedAt
+model StaffWorkingHours {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  isWorking Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-        // Unique constraint (id, businessId) enables composite FK references
-        @@unique([id, businessId])
-    }
+  staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
 
-    CUSTOMER {
-        id        String   @id @default(cuid())
-        businessId String
-        name      String
-        email     String
-        phone     String?
-        notes     String?
-        createdAt DateTime @default(now())
-        updatedAt DateTime @updatedAt
+  @@unique([staffId, businessId, dayOfWeek])
+}
 
-        // Unique constraint (id, businessId) enables composite FK references
-        // email unique within a business (not globally)
-        @@unique([id, businessId])
-        @@unique([businessId, email], name: "Customer_businessId_email_key")
-    }
+model StaffTimeOff {
+  id        String   @id @default(cuid())
+  staffId   String
+  businessId String
+  startTime DateTime
+  endTime   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
 
-    APPOINTMENT {
-        id                 String          @id @default(cuid())
-        businessId         String
-        customerId         String?         // Nullable: supports guest bookings (no customer record)
-        staffId            String
-        serviceId          String
-        startTime          DateTime        // UTC timestamptz
-        endTime            DateTime        // UTC timestamptz (includes service duration + buffer)
-        status             AppointmentStatus @default(PENDING)
-        price              Decimal
-        customerName       String?         // Snapshot for guest bookings
-        customerEmail      String?         // Snapshot for guest bookings
-        customerPhone      String?         // Snapshot for guest bookings
-        notes              String?
-        cancelledAt        DateTime?
-        cancellationReason String?
-        createdAt          DateTime        @default(now())
-        updatedAt          DateTime        @updatedAt
-        deletedAt          DateTime?
+  staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
+}
 
-        customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
-        staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
-        service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
+model Service {
+  id        String   @id @default(cuid())
+  businessId String
+  name      String
+  description String?
+  price     Decimal
+  durationMinutes Int
+  bufferMinutes Int  @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-        // Unique constraint (id, businessId) enables composite FK references from Payment/Notification
-        @@unique([id, businessId])
-        // Composite FKs prevent cross-business references:
-        // Appointment cannot reference Staff/Service/Customer from another business
-    }
+  business      Business     @relation(fields: [businessId], references: [id])
+  staffServices StaffService[]
+  appointments  Appointment[]
 
-    PAYMENT {
-        id               String       @id @default(cuid())
-        businessId       String
-        appointmentId    String
-        customerId       String?      // Derivable via appointment.customerId; kept for query performance
-        amount           Decimal
-        currency         String       @default("INR")
-        status           PaymentStatus @default(PENDING)
-        provider         String?
-        providerPaymentId String?
-        createdAt        DateTime    @default(now())
-        updatedAt        DateTime    @updatedAt
+  @@unique([id, businessId])
+}
 
-        appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
-        customer    Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
+model Customer {
+  id        String   @id @default(cuid())
+  businessId String
+  name      String
+  email     String
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-        // Composite FK prevents referencing appointments from another business
-        // customerId, when set, must reference a customer belonging to the same business
-        @@unique([appointmentId], name: "Payment_appointmentId_key")
-    }
+  business   Business   @relation(fields: [businessId], references: [id])
+  appointments Appointment[]
+  payments   Payment[]
 
-    NOTIFICATION {
-        id          String        @id @default(cuid())
-        businessId  String
-        appointmentId String
-        channel     NotificationChannel // EMAIL | SMS | IN_APP
-        recipient   String         // email address, phone number, or userId depending on channel
-        type        NotificationType // BOOKING_CONFIRMATION | APPOINTMENT_UPDATE | CANCELLATION | REMINDER | BUSINESS_ALERT
-        subject     String?
-        content     String
-        status      NotificationStatus @default(PENDING)
-        sentAt      DateTime?
-        createdAt   DateTime @default(now())
+  @@unique([id, businessId])
+  @@unique([businessId, email], name: "Customer_businessId_email_key")
+}
 
-        appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
-    }
+model Appointment {
+  id                 String          @id @default(cuid())
+  businessId         String
+  customerId         String?
+  staffId            String
+  serviceId          String
+  startTime          DateTime
+  endTime            DateTime
+  status             AppointmentStatus @default(PENDING)
+  price              Decimal
+  customerName       String?
+  customerEmail      String?
+  customerPhone      String?
+  notes              String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
 
-    AVAILABILITY_EXCEPTION {
-        id        String   @id @default(cuid())
-        businessId String
-        startTime DateTime // UTC timestamptz
-        endTime   DateTime // UTC timestamptz
-        title     String?
-        isClosed  Boolean  @default(true)
-        createdAt DateTime @default(now())
+  business   Business    @relation(fields: [businessId], references: [id])
+  customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
+  staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
+  service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
+  payments   Payment[]
+  notifications Notification[]
 
-        business Business @relation(fields: [businessId], references: [id])
-    }
+  @@unique([id, businessId])
+}
 
-    AUDIT_LOG {
-        id          String   @id @default(cuid())
-        businessId  String?
-        userId      String?
-        action      String
-        entityType  String
-        entityId    String
-        oldValues   Json?
-        newValues   Json?
-        ipAddress   String?
-        userAgent   String?
-        createdAt   DateTime @default(now())
+model Payment {
+  id               String       @id @default(cuid())
+  businessId       String
+  appointmentId    String
+  amount           Decimal
+  currency         String       @default("INR")
+  status           PaymentStatus @default(PENDING)
+  provider         String?
+  providerPaymentId String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-        business Business? @relation(fields: [businessId], references: [id])
-        user     User?     @relation(fields: [userId], references: [id])
-    }
+  business Business   @relation(fields: [businessId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
+
+  @@unique([appointmentId], name: "Payment_appointmentId_key")
+}
+
+model Notification {
+  id          String        @id @default(cuid())
+  businessId  String
+  appointmentId String
+  channel     NotificationChannel
+  recipient   String
+  type        NotificationType
+  subject     String?
+  content     String
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  business Business   @relation(fields: [businessId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
+}
+
+model AvailabilityException {
+  id        String   @id @default(cuid())
+  businessId String
+  startTime DateTime
+  endTime   DateTime
+  title     String?
+  isClosed  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  businessId  String?
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
+}
+```
+
+**Prisma syntax notes:**
+- Composite unique constraints use `@@unique([fieldA, fieldB])` — supported natively.
+- Composite foreign keys use relation fields with `@relation(fields: [...], references: [...])` — NOT `@@foreignKey`.
+- The referenced model must have a unique constraint covering the referenced fields (e.g., `@@unique([id, businessId])` on `Staff`).
+- Exclusion constraints (`EXCLUDE USING gist`) cannot be expressed in Prisma schema. The `appointment_no_overlap` constraint requires a raw SQL migration.
+- Both sides of each relation are shown (e.g., `User.staffProfiles` and `Staff.user`).
 
 **Note on appointment status history:** Appointment status changes are recorded in `AuditLog` with `entityType = 'Appointment'`, `action = 'status_change'`, and `oldValues`/`newValues` capturing the before/after status. There is no separate `AppointmentStatusHistory` entity; `AuditLog` serves as the immutable status-change audit trail. A dedicated `AppointmentStatusHistory` table remains an open decision if more granular status transition tracking is needed.
 ```
@@ -338,7 +370,9 @@ Links User → Business with a role: `OWNER` | `ADMIN` | `STAFF` | `VIEWER`.
 Employee profile within a business. Optional link to a `User` account (staff who log in).
 
 - `userId` is **nullable**. A staff member can exist without a login account (e.g., a contractor who doesn't need platform access).
-- A single user may hold staff profiles at multiple businesses; uniqueness is enforced on `(businessId, userId)`, so one user account can be staff at more than one business, but cannot have duplicate staff profiles within the same business.
+- **User → Staff:** One User may have staff profiles at multiple businesses (one-to-many via `Staff.staffProfiles` on User).
+- **Staff → User:** A Staff profile may have no linked User (nullable `userId`). The relationship is many-to-one: many Staff profiles can link to the same User, but each Staff profile references at most one User.
+- **Per-business uniqueness:** `@@unique([businessId, userId])` prevents duplicate staff profiles for the same user within the same business. Multiple staff profiles with `null` userId can exist for the same business.
 - `isActive` — whether staff can take new bookings.
 
 ### 3.5 StaffService
@@ -369,9 +403,9 @@ The core booking record.
 **Decision rationale (Option A over Option B):** Making `customerId` optional avoids forcing Customer record creation during the public booking flow. The appointment already carries snapshot contact fields, so a Customer record can be created later (e.g., when the customer returns) without data loss. This keeps the booking submission simple and transactionally safe.
 
 ### 3.11 Payment
-Payment record linked to an appointment and (optionally) a customer. `status`: `PENDING` | `PAID` | `REFUNDED` | `FAILED`. Modular — provider fields optional.
+Payment record linked to an appointment. `status`: `PENDING` | `PAID` | `REFUNDED` | `FAILED`. Modular — provider fields optional.
 
-- `customerId` is nullable and derivable via `appointment.customerId`; it is kept for query performance but must reference a customer belonging to the same business when set.
+- **No redundant `customerId` field.** The customer is derived through `appointment.customerId`. Payment does not store a direct customer reference, eliminating the risk of a payment referencing a customer different from its appointment's customer or from another business.
 - `appointmentId` is unique — one payment per appointment.
 - Cross-business integrity: `Payment` references `Appointment(id, businessId)` via composite FK, preventing payment for another business's appointment.
 
