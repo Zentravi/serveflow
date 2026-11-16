@@ -49,7 +49,7 @@ erDiagram
     CUSTOMER ||--o{ APPOINTMENT : "makes"
 
     APPOINTMENT }o--|| BUSINESS : "belongs to"
-    APPOINTMENT }o--|| CUSTOMER : "made by"
+    APPOINTMENT }o--o| CUSTOMER : "made by (optional — guest bookings)"
     APPOINTMENT }o--|| STAFF : "served by"
     APPOINTMENT }o--|| SERVICE : "booked for"
     APPOINTMENT ||--o| PAYMENT : "has zero or one"
@@ -66,208 +66,243 @@ erDiagram
 
     PAYMENT }o--|| BUSINESS : "business"
     PAYMENT }o--|| APPOINTMENT : "appointment"
-    PAYMENT }o--|| CUSTOMER : "customer"
+    PAYMENT }o--o| CUSTOMER : "customer (optional)"
 
     USER {
-        String id PK
-        String email UK
-        String passwordHash
-        String name
-        String imageUrl
-        Boolean emailVerified
-        DateTime emailVerifiedAt
-        String emailVerificationToken
-        DateTime emailVerificationTokenExpires
-        String passwordResetToken
-        DateTime passwordResetTokenExpires
+        id                        String   @id @default(cuid())
+        email                     String   @unique
+        passwordHash              String
+        name                      String
+        imageUrl                  String?
+        emailVerified             Boolean  @default(false)
+        emailVerifiedAt           DateTime?
+        emailVerificationToken    String?
+        emailVerificationTokenExpires DateTime?
+        passwordResetToken        String?
+        passwordResetTokenExpires DateTime?
         // Platform-level role: SUPER_ADMIN or USER. Separate from business-scoped MembershipRole.
-        PlatformRole platformRole
-        DateTime createdAt
-        DateTime updatedAt
+        platformRole              PlatformRole @default(USER)
+        createdAt                 DateTime @default(now())
+        updatedAt                 DateTime @updatedAt
     }
 
     BUSINESS {
-        String id PK
-        String name
-        String slug UK
-        String email
-        String phone
-        String address
-        String timezone
-        String operatingHours JSON
-        Boolean isPublicBookingEnabled
-        String logoUrl
-        BusinessStatus status
-        DateTime createdAt
-        DateTime updatedAt
-        DateTime? deletedAt
+        id                String   @id @default(cuid())
+        name              String
+        slug              String   @unique
+        email             String?
+        phone             String?
+        address           String?
+        timezone          String   @default("Asia/Kolkata")
+        operatingHours    Json     // Map of day-of-week (0–6) → open/close intervals
+        isPublicBookingEnabled Boolean @default(true)
+        logoUrl           String?
+        status            BusinessStatus @default(ACTIVE)
+        createdAt         DateTime @default(now())
+        updatedAt         DateTime @updatedAt
+        deletedAt         DateTime?
     }
 
     MEMBERSHIP {
-        String id PK
-        String userId FK
-        String businessId FK
-        MembershipRole role
-        DateTime createdAt
+        id        String   @id @default(cuid())
+        userId    String
+        businessId String
+        role      MembershipRole
+        createdAt DateTime @default(now())
+
+        user    User   @relation(fields: [userId], references: [id])
+        business Business @relation(fields: [businessId], references: [id])
+
+        @@unique([userId, businessId])
     }
 
     STAFF {
-        String id PK
-        String businessId FK
-        String userId FK
-        String name
-        String email
-        String phone
-        String role
-        String bio
-        String imageUrl
-        Boolean isActive
-        DateTime createdAt
-        DateTime updatedAt
-        // Unique constraint (id, businessId) enables composite FK references
+        id        String   @id @default(cuid())
+        businessId String
+        userId    String?   // Nullable: staff can exist without a login account
+        name      String
+        email     String
+        phone     String?
+        role      String
+        bio       String?
+        imageUrl  String?
+        isActive  Boolean   @default(true)
+        createdAt DateTime  @default(now())
+        updatedAt DateTime  @updatedAt
+
+        // Composite uniqueness: one user account → one staff profile per business
+        // Multiple staff can have null userId for the same business (guest staff)
         @@unique([id, businessId])
+        @@unique([businessId, userId], name: "Staff_businessId_userId_key", map: "staff_business_user_unique")
     }
 
     STAFF_SERVICE {
-        String id PK
-        String staffId FK
-        String businessId FK
-        String serviceId FK
-        DateTime createdAt
+        id        String   @id @default(cuid())
+        staffId   String
+        businessId String
+        serviceId String
+        createdAt DateTime @default(now())
+
+        staff   Staff    @relation(fields: [staffId, businessId], references: [id, businessId])
+        service Service  @relation(fields: [serviceId, businessId], references: [id, businessId])
+
         // Composite FKs prevent linking staff and services from different businesses
-        @@foreignKey([staffId, businessId], references: [id, businessId])
-        @@foreignKey([serviceId, businessId], references: [id, businessId])
+        @@unique([staffId, serviceId, businessId])
     }
 
     STAFF_WORKING_HOURS {
-        String id PK
-        String staffId FK
-        Int dayOfWeek 0-6
-        Time startTime
-        Time endTime
-        Boolean isWorking
-        DateTime createdAt
+        id        String   @id @default(cuid())
+        staffId   String
+        businessId String
+        dayOfWeek Int
+        startTime String   // "HH:MM" local time
+        endTime   String   // "HH:MM" local time
+        isWorking Boolean @default(true)
+        createdAt DateTime @default(now())
+
+        staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
+
+        @@unique([staffId, businessId, dayOfWeek])
     }
 
     STAFF_TIME_OFF {
-        String id PK
-        String staffId FK
-        DateTime startTime
-        DateTime endTime
-        String reason
-        DateTime createdAt
+        id        String   @id @default(cuid())
+        staffId   String
+        businessId String
+        startTime DateTime // UTC timestamptz
+        endTime   DateTime // UTC timestamptz
+        reason    String?
+        createdAt DateTime @default(now())
+
+        staff Staff @relation(fields: [staffId, businessId], references: [id, businessId])
     }
 
     SERVICE {
-        String id PK
-        String businessId FK
-        String name
-        String description
-        Decimal price
-        Int durationMinutes
-        Int bufferMinutes
-        Boolean isActive
-        DateTime createdAt
-        DateTime updatedAt
+        id        String   @id @default(cuid())
+        businessId String
+        name      String
+        description String?
+        price     Decimal
+        durationMinutes Int
+        bufferMinutes Int  @default(0)
+        isActive  Boolean  @default(true)
+        createdAt DateTime @default(now())
+        updatedAt DateTime @updatedAt
+
         // Unique constraint (id, businessId) enables composite FK references
         @@unique([id, businessId])
     }
 
     CUSTOMER {
-        String id PK
-        String businessId FK
-        String name
-        String email UK (per business)
-        String phone
-        String notes
-        DateTime createdAt
-        DateTime updatedAt
+        id        String   @id @default(cuid())
+        businessId String
+        name      String
+        email     String
+        phone     String?
+        notes     String?
+        createdAt DateTime @default(now())
+        updatedAt DateTime @updatedAt
+
         // Unique constraint (id, businessId) enables composite FK references
+        // email unique within a business (not globally)
         @@unique([id, businessId])
+        @@unique([businessId, email], name: "Customer_businessId_email_key")
     }
 
     APPOINTMENT {
-        String id PK
-        String businessId FK
-        String customerId FK
-        String staffId FK
-        String serviceId FK
-        DateTime startTime
-        DateTime endTime
-        AppointmentStatus status
-        Decimal price
-        String? customerName
-        String? customerEmail
-        String? customerPhone
-        String notes
-        DateTime createdAt
-        DateTime updatedAt
-        DateTime? cancelledAt
-        String? cancellationReason
-        DateTime? deletedAt
+        id                 String          @id @default(cuid())
+        businessId         String
+        customerId         String?         // Nullable: supports guest bookings (no customer record)
+        staffId            String
+        serviceId          String
+        startTime          DateTime        // UTC timestamptz
+        endTime            DateTime        // UTC timestamptz (includes service duration + buffer)
+        status             AppointmentStatus @default(PENDING)
+        price              Decimal
+        customerName       String?         // Snapshot for guest bookings
+        customerEmail      String?         // Snapshot for guest bookings
+        customerPhone      String?         // Snapshot for guest bookings
+        notes              String?
+        cancelledAt        DateTime?
+        cancellationReason String?
+        createdAt          DateTime        @default(now())
+        updatedAt          DateTime        @updatedAt
+        deletedAt          DateTime?
+
+        customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
+        staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
+        service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
+
         // Unique constraint (id, businessId) enables composite FK references from Payment/Notification
         @@unique([id, businessId])
         // Composite FKs prevent cross-business references:
         // Appointment cannot reference Staff/Service/Customer from another business
-        @@foreignKey([staffId, businessId], references: [id, businessId])
-        @@foreignKey([serviceId, businessId], references: [id, businessId])
-        @@foreignKey([customerId, businessId], references: [id, businessId])
     }
 
     PAYMENT {
-        String id PK
-        String businessId FK
-        String appointmentId FK UK
-        String customerId FK
-        Decimal amount
-        String currency
-        PaymentStatus status
-        String? provider
-        String? providerPaymentId
-        DateTime createdAt
-        DateTime updatedAt
+        id               String       @id @default(cuid())
+        businessId       String
+        appointmentId    String
+        customerId       String?      // Derivable via appointment.customerId; kept for query performance
+        amount           Decimal
+        currency         String       @default("INR")
+        status           PaymentStatus @default(PENDING)
+        provider         String?
+        providerPaymentId String?
+        createdAt        DateTime    @default(now())
+        updatedAt        DateTime    @updatedAt
+
+        appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
+        customer    Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
+
         // Composite FK prevents referencing appointments from another business
-        @@foreignKey([appointmentId, businessId], references: [id, businessId])
+        // customerId, when set, must reference a customer belonging to the same business
+        @@unique([appointmentId], name: "Payment_appointmentId_key")
     }
 
     NOTIFICATION {
-        String id PK
-        String businessId FK
-        String appointmentId FK
-        NotificationChannel channel  // EMAIL | SMS | IN_APP
-        String recipient            // email address, phone number, or userId depending on channel
-        NotificationType type       // BOOKING_CONFIRMATION | APPOINTMENT_UPDATE | CANCELLATION | REMINDER | BUSINESS_ALERT
-        String subject
-        String content
-        NotificationStatus status   // PENDING | SENT | FAILED
-        DateTime sentAt
-        DateTime createdAt
-        // Composite FK prevents referencing appointments from another business
-        @@foreignKey([appointmentId, businessId], references: [id, businessId])
+        id          String        @id @default(cuid())
+        businessId  String
+        appointmentId String
+        channel     NotificationChannel // EMAIL | SMS | IN_APP
+        recipient   String         // email address, phone number, or userId depending on channel
+        type        NotificationType // BOOKING_CONFIRMATION | APPOINTMENT_UPDATE | CANCELLATION | REMINDER | BUSINESS_ALERT
+        subject     String?
+        content     String
+        status      NotificationStatus @default(PENDING)
+        sentAt      DateTime?
+        createdAt   DateTime @default(now())
+
+        appointment Appointment @relation(fields: [appointmentId, businessId], references: [id, businessId])
     }
 
     AVAILABILITY_EXCEPTION {
-        String id PK
-        String businessId FK
-        DateTime startTime
-        DateTime endTime
-        String title
-        Boolean isClosed
-        DateTime createdAt
+        id        String   @id @default(cuid())
+        businessId String
+        startTime DateTime // UTC timestamptz
+        endTime   DateTime // UTC timestamptz
+        title     String?
+        isClosed  Boolean  @default(true)
+        createdAt DateTime @default(now())
+
+        business Business @relation(fields: [businessId], references: [id])
     }
 
     AUDIT_LOG {
-        String id PK
-        String businessId FK
-        String userId FK
-        String action
-        String entityType
-        String entityId
-        String oldValues JSON
-        String newValues JSON
-        String ipAddress
-        String userAgent
-        DateTime createdAt
+        id          String   @id @default(cuid())
+        businessId  String?
+        userId      String?
+        action      String
+        entityType  String
+        entityId    String
+        oldValues   Json?
+        newValues   Json?
+        ipAddress   String?
+        userAgent   String?
+        createdAt   DateTime @default(now())
+
+        business Business? @relation(fields: [businessId], references: [id])
+        user     User?     @relation(fields: [userId], references: [id])
     }
 
 **Note on appointment status history:** Appointment status changes are recorded in `AuditLog` with `entityType = 'Appointment'`, `action = 'status_change'`, and `oldValues`/`newValues` capturing the before/after status. There is no separate `AppointmentStatusHistory` entity; `AuditLog` serves as the immutable status-change audit trail. A dedicated `AppointmentStatusHistory` table remains an open decision if more granular status transition tracking is needed.
@@ -302,7 +337,8 @@ Links User → Business with a role: `OWNER` | `ADMIN` | `STAFF` | `VIEWER`.
 ### 3.4 Staff
 Employee profile within a business. Optional link to a `User` account (staff who log in).
 
-- `userId` links to a platform `User` account. A single user may hold staff profiles at multiple businesses; uniqueness is enforced on `(businessId, userId)` rather than `userId` alone, so one user account can be staff at more than one business.
+- `userId` is **nullable**. A staff member can exist without a login account (e.g., a contractor who doesn't need platform access).
+- A single user may hold staff profiles at multiple businesses; uniqueness is enforced on `(businessId, userId)`, so one user account can be staff at more than one business, but cannot have duplicate staff profiles within the same business.
 - `isActive` — whether staff can take new bookings.
 
 ### 3.5 StaffService
@@ -326,11 +362,18 @@ The core booking record.
 - `startTime` / `endTime` — UTC timestamps. `endTime` = `startTime` + service duration + service buffer. The buffer is included in the occupied interval so no other booking can start during the buffer period.
 - `status` — `PENDING` | `CONFIRMED` | `COMPLETED` | `CANCELLED` | `NO_SHOW`.
 - `price` — snapshot of service price at booking time.
+- `customerId` is **nullable** (Option A: optional). This supports guest bookings where no `Customer` record exists yet. When `customerId` is null, `customerName/Email/Phone` snapshot fields capture the guest's details.
 - `customerName/Email/Phone` — snapshot for guest bookings (portal) where no customer record exists yet.
 - `deletedAt` — soft-delete column present for schema consistency; appointments are logically removed by setting `status = CANCELLED` rather than hard-deleting, preserving history and audit trails.
 
+**Decision rationale (Option A over Option B):** Making `customerId` optional avoids forcing Customer record creation during the public booking flow. The appointment already carries snapshot contact fields, so a Customer record can be created later (e.g., when the customer returns) without data loss. This keeps the booking submission simple and transactionally safe.
+
 ### 3.11 Payment
-Payment record linked to an appointment and customer. `status`: `PENDING` | `PAID` | `REFUNDED` | `FAILED`. Modular — provider fields optional.
+Payment record linked to an appointment and (optionally) a customer. `status`: `PENDING` | `PAID` | `REFUNDED` | `FAILED`. Modular — provider fields optional.
+
+- `customerId` is nullable and derivable via `appointment.customerId`; it is kept for query performance but must reference a customer belonging to the same business when set.
+- `appointmentId` is unique — one payment per appointment.
+- Cross-business integrity: `Payment` references `Appointment(id, businessId)` via composite FK, preventing payment for another business's appointment.
 
 ### 3.12 Notification
 Outbound notification record (email/SMS/in-app) tied to an appointment.
@@ -398,7 +441,20 @@ Referenced tables require unique constraints on `(id, businessId)`: `Staff`, `Se
 
 Composite foreign keys are supported by Prisma and PostgreSQL. They provide database-level defense-in-depth alongside application-layer tenant scoping. However, tenant isolation is NOT fully database-enforced — application-layer authorization (role checks, business context resolution) remains the primary enforcement mechanism. Database constraints prevent specific cross-business FK violations but do not replace authorization middleware.
 
-Prisma limitation: Prisma cannot declaratively express `EXCLUDE USING gist` constraints (see §6.5) or all composite FK patterns in `schema.prisma`. Composite FKs are supported via `@@foreignKey` in Prisma schema, but the `appointment_no_overlap` exclusion constraint requires a raw SQL migration.
+Prisma syntax notes:
+
+- **Composite unique constraints** use `@@unique([fieldA, fieldB])` — supported natively.
+- **Composite foreign keys** use relation fields with `@relation(fields: [...], references: [...])` — NOT `@@foreignKey`. For example:
+  ```prisma
+  staff   Staff    @relation(fields: [staffId, businessId], references: [id, businessId])
+  service Service  @relation(fields: [serviceId, businessId], references: [id, businessId])
+  ```
+  The referenced model must have a unique constraint covering the referenced fields (e.g., `@@unique([id, businessId])` on `Staff`).
+- **Exclusion constraints** (`EXCLUDE USING gist`) cannot be expressed in Prisma schema. The `appointment_no_overlap` constraint requires a raw SQL migration (see §6.5) and must be manually preserved across `prisma migrate dev` resets.
+
+Referenced tables require unique constraints on `(id, businessId)`: `Staff`, `Service`, `Customer`, `Appointment`. These are declared as `@@unique([id, businessId])` in the Prisma schema.
+
+Composite foreign keys are supported by Prisma and PostgreSQL via `@relation(fields:, references:)`. They provide database-level defense-in-depth alongside application-layer tenant scoping. However, tenant isolation is NOT fully database-enforced — application-layer authorization (role checks, business context resolution) remains the primary enforcement mechanism. Database constraints prevent specific cross-business FK violations but do not replace authorization middleware.
 
 ---
 

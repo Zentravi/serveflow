@@ -402,6 +402,11 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 | DB-13 | High | No platform super-admin model | Added `User.platformRole` (`SUPER_ADMIN`/`USER`) separate from `MembershipRole`; `SuperAdminGuard` enforces platform-level authorization | DATABASE.md, ARCHITECTURE.md, API.md |
 | ARCH-7 | High | Cookie SameSite inconsistent across documents | Unified on `SameSite=Lax` (same-site subdomains); documented `credentials: include`; CSRF as synchronizer-token pattern (not double-submit-cookie) | ARCHITECTURE.md, API.md |
 | UI-7 | Medium | Color contrast claims unverified | Exact hex values defined; contrast ratios calculated (Cobalt on white 6.7:1, on ivory 6.3:1; status colors documented with contrast notes) | UI-UX.md |
+| DB-14 | High | Prisma composite FK syntax invalid | Replaced `@@foreignKey([...], references: [...])` with valid Prisma `@relation(fields: [...], references: [...])` syntax on all composite relations | DATABASE.md |
+| DB-15 | High | Staff.userId required (should be nullable) | Made `userId` nullable; staff can exist without login account; composite `@@unique([businessId, userId])` prevents duplicate staff per business per user | DATABASE.md |
+| DB-16 | High | Guest booking customerId required | Made `customerId` nullable (Option A); appointment carries snapshot contact fields for guest bookings; PRD/API/DATABASE agree | DATABASE.md, PRD.md, API.md |
+| DB-17 | High | StaffWorkingHours/StaffTimeOff missing composite FKs | Added `businessId` to both models with composite `@relation(fields: [staffId, businessId], references: [id, businessId])` | DATABASE.md |
+| DB-18 | Medium | Prisma exclusion constraint limitation | Documented that `appointment_no_overlap` (`EXCLUDE USING gist`) requires raw SQL migration outside Prisma schema; migration preservation documented | DATABASE.md, ARCHITECTURE.md, ROADMAP.md |
 
 ### Remaining open decisions
 
