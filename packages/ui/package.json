@@ -1,0 +1,26 @@
+{
+  "name": "@serveflow/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ServeFlow shared UI component library (shadcn/ui base with ServeFlow tokens)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.1.0"
+  },
+  "devDependencies": {
+    "@serveflow/config": "^0.1.0",
+    "typescript": "^5.8.2"
+  }
+}
