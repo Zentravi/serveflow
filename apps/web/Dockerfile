@@ -43,10 +43,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Next.js standalone output is self-contained: it includes its own
-# minimal node_modules, the server entry point, and static assets.
-COPY --from=build /app/apps/web/.next/standalone ./apps/web/.next/standalone
+# minimal node_modules, the server entry point, and build output.
+# The standalone directory preserves the workspace-relative path
+# (apps/web/), so copying to root gives us apps/web/server.js.
+COPY --from=build /app/apps/web/.next/standalone ./
 
 EXPOSE 3000
 
-# Standalone server entry point is at apps/web/.next/standalone/apps/web/server.js
-CMD ["node", "apps/web/.next/standalone/apps/web/server.js"]
+# Server entry point: standalone preserves apps/web/ prefix,
+# so server.js is at apps/web/server.js relative to image root.
+CMD ["node", "apps/web/server.js"]

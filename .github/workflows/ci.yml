@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript check (all workspaces)
+        run: npm run type-check
+
+      - name: ESLint
+        run: npm run lint
+
+  prisma-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Prisma schema validation
+        run: npx prisma validate --schema=packages/db/prisma/schema.prisma
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type-check, prisma-validation]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Frontend production build
+        run: npm run build --filter=@serveflow/web
+
+      - name: Backend production build
+        run: npm run build --filter=@serveflow/api
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build API Docker image
+        run: docker build -t serveflow-api -f apps/api/Dockerfile .
+
+      - name: Build Web Docker image
+        run: docker build -t serveflow-web -f apps/web/Dockerfile .
