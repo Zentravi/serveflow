@@ -18,11 +18,11 @@ model User {
   name                      String
   imageUrl                  String?
   emailVerified             Boolean  @default(false)
-  emailVerifiedAt           DateTime @db.Timestamptz(3)?
+  emailVerifiedAt           DateTime? @db.Timestamptz(3)
   emailVerificationToken    String?
-  emailVerificationTokenExpires DateTime @db.Timestamptz(3)?
+  emailVerificationTokenExpires DateTime? @db.Timestamptz(3)
   passwordResetToken        String?
-  passwordResetTokenExpires DateTime @db.Timestamptz(3)?
+  passwordResetTokenExpires DateTime? @db.Timestamptz(3)
   platformRole              PlatformRole @default(USER)
   createdAt                 DateTime @db.Timestamptz(3) @default(now())
   updatedAt                 DateTime @db.Timestamptz(3) @updatedAt
@@ -53,7 +53,7 @@ model Business {
   status            BusinessStatus @default(ACTIVE)
   createdAt         DateTime @db.Timestamptz(3) @default(now())
   updatedAt         DateTime @db.Timestamptz(3) @updatedAt
-  deletedAt         DateTime @db.Timestamptz(3)?
+  deletedAt         DateTime? @db.Timestamptz(3)
 
   memberships       Membership[]
   staff             Staff[]
@@ -235,11 +235,11 @@ model Appointment {
   customerEmail      String?
   customerPhone      String?
   notes              String?
-  cancelledAt        DateTime @db.Timestamptz(3)?
+  cancelledAt        DateTime? @db.Timestamptz(3)
   cancellationReason String?
   createdAt          DateTime @db.Timestamptz(3) @default(now())
   updatedAt          DateTime @db.Timestamptz(3) @updatedAt
-  deletedAt          DateTime @db.Timestamptz(3)?
+  deletedAt          DateTime? @db.Timestamptz(3)
 
   business   Business    @relation(fields: [businessId], references: [id])
   customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
@@ -294,7 +294,7 @@ model Notification {
   subject     String?
   content     String
   status      NotificationStatus @default(PENDING)
-  sentAt      DateTime @db.Timestamptz(3)?
+  sentAt      DateTime? @db.Timestamptz(3)
   createdAt   DateTime @db.Timestamptz(3) @default(now())
 
   business Business   @relation(fields: [businessId], references: [id])
