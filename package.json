@@ -1,0 +1,33 @@
+{
+  "name": "serveflow",
+  "private": true,
+  "description": "A production-grade, multi-tenant business operations and appointment booking platform built by Zentravi.",
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:studio": "turbo run db:studio",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.13.10",
+    "prettier": "^3.5.3",
+    "turbo": "^2.4.2",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.72.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.9.8"
+}
