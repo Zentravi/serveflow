@@ -260,7 +260,7 @@ model Appointment {
   customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
   staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
   service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
-  payment    Payment?    @relation(fields: [], references: []) // derived via appointmentId unique constraint
+  payment    Payment?
   notifications Notification[]
 
   @@unique([id, businessId])

@@ -23,7 +23,7 @@ The original audit identified six High-severity issues:
 |---|---------------|----------|--------|-------------------|
 | 1 | Prisma exclusion constraint not documented as raw SQL migration | Critical | **Resolved** | Documented as raw SQL migration with `btree_gist` extension, conditional `WHERE` clause, migration preservation through `prisma migrate dev` resets |
 | 2 | `Staff.userId` globally unique prevents multi-business staff | Critical | **Resolved** | Removed global uniqueness; `(businessId, userId)` unique constraint allows one user to be staff at multiple businesses |
-| 3 | Active business selection mechanism unspecified | High | **Resolved** | Defined `POST /api/memberships/active` with server-side membership verification; active business stored server-side in session |
+| 3 | Active business selection mechanism unspecified | High | **Resolved** | Defined `POST /api/v1/memberships/active` with server-side membership verification; active business stored server-side in session |
 | 4 | Authentication method ambiguous (session/JWT/Redis) | High | **Resolved** | Selected HTTP-only `sessionId` cookie + PostgreSQL server-side session store; alternatives removed |
 | 5 | No CORS configuration | High | **Resolved** | Documented CORS with `FRONTEND_URL`, `credentials: true`, no wildcard origins |
 | 6 | No RLS defense-in-depth | High | **Resolved** | Documented as optional defense-in-depth; composite FKs added for database-level tenant integrity |
@@ -333,13 +333,13 @@ Each correction below explains: what is wrong, why it matters, what should chang
 
 ## 12. Final Readiness Verdict
 
-### READY AFTER MINOR CORRECTIONS
+### [Historical snapshot] Earlier draft verdict: READY AFTER MINOR CORRECTIONS
 
 **Rationale:** The overall architecture is sound, the technology choices are appropriate, the design direction is distinctive and aligned with the brief, and the roadmap is well-sequenced. The documents provide a solid foundation for Phase 2.
 
-**However**, two Critical issues (Prisma exclusion constraint, Staff.userId uniqueness) and several High-severity issues (active business resolution, authentication method, CORS, RLS, notification complexity) must be corrected before implementation begins. These are all specific, correctable items — none require architectural redesign.
+**However**, two Critical issues (Prisma exclusion constraint, Staff.userId uniqueness) and several High-severity issues (active business resolution, authentication method, CORS, RLS, notification complexity) were identified and required correction before implementation could begin. These were all specific, correctable items — none required architectural redesign. **All of these issues have since been resolved and documented in the planning documents.**
 
-**Conditions for approval:**
+**Conditions for approval (at time of original draft — historical):**
 1. Apply corrections C1–C9 (or document an explicit decision to defer any of them).
 2. Update the six planning documents with the corrections.
 3. Re-review the updated documents before starting Phase 2.
@@ -360,7 +360,7 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 |----|----------|-------|------------|---------------------|
 | CRIT-1 | Critical | Prisma exclusion constraint not natively supported | Documented as raw SQL migration with `CREATE EXTENSION IF NOT EXISTS btree_gist`, conditional `WHERE (status IN ('PENDING', 'CONFIRMED'))` clause so cancelled/completed/no-show appointments don't block future bookings, slot-occupying statuses explicitly defined, migration preservation through `prisma migrate dev` resets documented | DATABASE.md, ARCHITECTURE.md, ROADMAP.md |
 | CRIT-2 | Critical | `Staff.userId` globally unique prevents multi-business staff | Removed global uniqueness; `(businessId, userId)` unique constraint allows one user to be staff at multiple businesses | DATABASE.md |
-| PRD-1 | High | Active business selection mechanism unspecified | Defined `POST /api/memberships/active` with server-side membership verification; active business stored server-side in session | PRD.md, ARCHITECTURE.md, API.md |
+| PRD-1 | High | Active business selection mechanism unspecified | Defined `POST /api/v1/memberships/active` with server-side membership verification; active business stored server-side in session | PRD.md, ARCHITECTURE.md, API.md |
 | PRD-2 | High | Redis + BullMQ mandated at MVP | Deferred to Phase 6; MVP uses synchronous email sending with configurable provider | PRD.md, ARCHITECTURE.md, ROADMAP.md |
 | ARCH-2 | High | Auth strategy ambiguous (session/JWT/Redis) | Selected HTTP-only `sessionId` cookie + PostgreSQL server-side session store; alternatives removed | ARCHITECTURE.md, API.md |
 | ARCH-3 | High | No CORS/CSRF configuration | Documented CORS with `FRONTEND_URL`, `credentials: true`, no wildcard origins; cross-origin domain arrangement specified (`web.serveflow.app` → `api.serveflow.app`); `SameSite=Lax` for same-site cookie delivery; CSRF protection via Origin/Referer validation + synchronizer-token CSRF header | ARCHITECTURE.md |

@@ -104,7 +104,7 @@ src/
 ├── customers/               # Customer directory
 ├── appointments/            # Booking engine, availability, status transitions
 ├── payments/                # Payment records
-├── notifications/           # Notification preferences + BullMQ producers
+├── notifications/           # Notification service + synchronous provider integration (BullMQ introduced in Phase 6)
 ├── audit/                   # Audit log reader
 ├── admin/                   # Super-admin platform operations
 ├── common/                  # Guards, decorators, DTO base classes, exceptions, logging
@@ -181,7 +181,7 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 ### 6.2 Enforcement rules
 
 1. **Never trust client-supplied `businessId`.** The server resolves the business from the user's verified membership on every request.
-2. **Active business selection:** A user may belong to multiple businesses. The frontend can request a business context (e.g., via `POST /api/memberships/active`), but the backend independently verifies the user's membership and permissions for that business on every request before resolving `businessId`. The active business is stored server-side (in the session), not derived from client input.
+2. **Active business selection:** A user may belong to multiple businesses. The frontend can request a business context (e.g., via `POST /api/v1/memberships/active`), but the backend independently verifies the user's membership and permissions for that business on every request before resolving `businessId`. The active business is stored server-side (in the session), not derived from client input.
 3. **Every tenant-scoped query adds `WHERE businessId = <resolved business id>`.** This is enforced by repository/service layer, not by the controller.
 4. **Cross-business access is rejected** (403) even if the record ID is guessed.
 5. **Super-admin** is a platform-level role (`User.platformRole = SUPER_ADMIN`), separate from business roles. Super-admin can read across tenants for platform operations; ordinary business users cannot. Super-admin authorization is enforced via `SuperAdminGuard` checking `platformRole`, independent of any business membership.

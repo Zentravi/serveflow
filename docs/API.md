@@ -15,7 +15,7 @@
 | Protocol | HTTPS / HTTP, JSON |
 | Base path | `/api/v1` |
 | Auth | HTTP-only, Secure, SameSite=Lax `sessionId` cookie. Server-side session store (PostgreSQL). No tokens in URLs or localStorage. No JWT access/refresh pattern. |
-| Business context | Resolved server-side from the caller's verified membership. Client-supplied `businessId` is ignored/untrusted for tenant-scoped resources. Active business is set via `POST /api/memberships/active` and validated server-side on every request. |
+| Business context | Resolved server-side from the caller's verified membership. Client-supplied `businessId` is ignored/untrusted for tenant-scoped resources. Active business is set via `POST /api/v1/memberships/active` and validated server-side on every request. |
 | Errors | Standard envelope (see §2). |
 | Dates | ISO 8601 UTC strings (`YYYY-MM-DDTHH:mm:ss.sssZ`). |
 | Pagination | `page` (default 1) and `limit` (default 20, max 100) query params; response includes `meta { total, page, limit, totalPages }`. |

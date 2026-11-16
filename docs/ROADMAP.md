@@ -37,7 +37,7 @@
 - Login / logout / password reset (HTTP-only session cookies, bcrypt)
 - Business creation during onboarding (first business + owner membership)
 - Membership + role model (OWNER, ADMIN, STAFF, VIEWER)
-- Active business selection (`POST /api/memberships/active`, server-validated)
+- Active business selection (`POST /api/v1/memberships/active`, server-validated)
 - Tenant isolation middleware (business resolved from membership, not client ID)
 - Rate limiting on auth endpoints
 - Security headers
