@@ -282,6 +282,8 @@ Availability query params: `date`, `staffId`, `serviceId`. `businessId` resolved
 
 Cross-tenant access attempt → `403`. Missing membership for the business → `403`.
 
+**Super-admin authorization:** The `SUPER_ADMIN` role is a platform-level role stored on the `User.platformRole` field, separate from business-scoped `MembershipRole` (`OWNER`, `ADMIN`, `STAFF`, `VIEWER`). Super-admin endpoints (`/api/admin/*`) require `platformRole = SUPER_ADMIN` and are not scoped to any single business. A user can be `SUPER_ADMIN` without any business membership, or `USER` with business memberships. The two role systems are enforced independently: `SuperAdminGuard` checks `platformRole`; `RolesGuard` checks `MembershipRole` within the active business context.
+
 ---
 
 ## 7. OpenAPI/Swagger

@@ -52,7 +52,7 @@ erDiagram
     APPOINTMENT }o--|| CUSTOMER : "made by"
     APPOINTMENT }o--|| STAFF : "served by"
     APPOINTMENT }o--|| SERVICE : "booked for"
-    APPOINTMENT ||--}o PAYMENT : "has at most one"
+    APPOINTMENT ||--o| PAYMENT : "has zero or one"
     APPOINTMENT ||--o{ NOTIFICATION : "triggers zero or more"
 
     STAFF_SERVICE }o--|| STAFF : "staff"
@@ -80,6 +80,8 @@ erDiagram
         DateTime emailVerificationTokenExpires
         String passwordResetToken
         DateTime passwordResetTokenExpires
+        // Platform-level role: SUPER_ADMIN or USER. Separate from business-scoped MembershipRole.
+        PlatformRole platformRole
         DateTime createdAt
         DateTime updatedAt
     }
@@ -122,13 +124,19 @@ erDiagram
         Boolean isActive
         DateTime createdAt
         DateTime updatedAt
+        // Unique constraint (id, businessId) enables composite FK references
+        @@unique([id, businessId])
     }
 
     STAFF_SERVICE {
         String id PK
         String staffId FK
+        String businessId FK
         String serviceId FK
         DateTime createdAt
+        // Composite FKs prevent linking staff and services from different businesses
+        @@foreignKey([staffId, businessId], references: [id, businessId])
+        @@foreignKey([serviceId, businessId], references: [id, businessId])
     }
 
     STAFF_WORKING_HOURS {
@@ -161,6 +169,8 @@ erDiagram
         Boolean isActive
         DateTime createdAt
         DateTime updatedAt
+        // Unique constraint (id, businessId) enables composite FK references
+        @@unique([id, businessId])
     }
 
     CUSTOMER {
@@ -172,6 +182,8 @@ erDiagram
         String notes
         DateTime createdAt
         DateTime updatedAt
+        // Unique constraint (id, businessId) enables composite FK references
+        @@unique([id, businessId])
     }
 
     APPOINTMENT {
@@ -193,6 +205,13 @@ erDiagram
         DateTime? cancelledAt
         String? cancellationReason
         DateTime? deletedAt
+        // Unique constraint (id, businessId) enables composite FK references from Payment/Notification
+        @@unique([id, businessId])
+        // Composite FKs prevent cross-business references:
+        // Appointment cannot reference Staff/Service/Customer from another business
+        @@foreignKey([staffId, businessId], references: [id, businessId])
+        @@foreignKey([serviceId, businessId], references: [id, businessId])
+        @@foreignKey([customerId, businessId], references: [id, businessId])
     }
 
     PAYMENT {
@@ -207,6 +226,8 @@ erDiagram
         String? providerPaymentId
         DateTime createdAt
         DateTime updatedAt
+        // Composite FK prevents referencing appointments from another business
+        @@foreignKey([appointmentId, businessId], references: [id, businessId])
     }
 
     NOTIFICATION {
@@ -221,6 +242,8 @@ erDiagram
         NotificationStatus status   // PENDING | SENT | FAILED
         DateTime sentAt
         DateTime createdAt
+        // Composite FK prevents referencing appointments from another business
+        @@foreignKey([appointmentId, businessId], references: [id, businessId])
     }
 
     AVAILABILITY_EXCEPTION {
@@ -259,6 +282,7 @@ Platform-level account. One user can belong to multiple businesses via membershi
 
 - `email` is unique globally (login identifier).
 - `passwordHash` — bcrypt.
+- `platformRole` — Platform-level role: `SUPER_ADMIN` or `USER`. Separate from business-scoped `MembershipRole`. `SUPER_ADMIN` users can access the super-admin platform interface across all tenants; `USER` is the default for ordinary business users. Authorization is enforced server-side via a `SuperAdminGuard` that checks `platformRole = SUPER_ADMIN`, independent of any business membership.
 - `emailVerificationToken` / `passwordResetToken` — single-use, time-limited.
 
 ### 3.2 Business
@@ -355,6 +379,26 @@ Immutable append-only record of state-changing actions: who, what, when, old/new
 - **Appointments:** `ON DELETE SET NULL` / restrict delete; cancellations set `status = CANCELLED` rather than deleting, preserving history.
 - **Users:** `ON DELETE CASCADE` to memberships; soft-delete preferred.
 - **Businesses:** soft-delete via `deletedAt`; hard delete only in admin tooling with cascade to dependent records.
+
+### 5.5 Database-level tenant integrity (composite foreign keys)
+
+Composite foreign keys prevent cross-business record references at the database layer:
+
+| Table | Composite FK | References | Prevents |
+|-------|-------------|------------|----------|
+| `Appointment` | `(staffId, businessId)` | `Staff(id, businessId)` | Booking staff from another business |
+| `Appointment` | `(serviceId, businessId)` | `Service(id, businessId)` | Booking services from another business |
+| `Appointment` | `(customerId, businessId)` | `Customer(id, businessId)` | Booking customers from another business |
+| `StaffService` | `(staffId, businessId)` | `Staff(id, businessId)` | Linking staff from another business |
+| `StaffService` | `(serviceId, businessId)` | `Service(id, businessId)` | Linking services from another business |
+| `Payment` | `(appointmentId, businessId)` | `Appointment(id, businessId)` | Payment for another business's appointment |
+| `Notification` | `(appointmentId, businessId)` | `Appointment(id, businessId)` | Notification for another business's appointment |
+
+Referenced tables require unique constraints on `(id, businessId)`: `Staff`, `Service`, `Customer`, `Appointment`. These are declared as `@@unique([id, businessId])` in the Prisma schema.
+
+Composite foreign keys are supported by Prisma and PostgreSQL. They provide database-level defense-in-depth alongside application-layer tenant scoping. However, tenant isolation is NOT fully database-enforced — application-layer authorization (role checks, business context resolution) remains the primary enforcement mechanism. Database constraints prevent specific cross-business FK violations but do not replace authorization middleware.
+
+Prisma limitation: Prisma cannot declaratively express `EXCLUDE USING gist` constraints (see §6.5) or all composite FK patterns in `schema.prisma`. Composite FKs are supported via `@@foreignKey` in Prisma schema, but the `appointment_no_overlap` exclusion constraint requires a raw SQL migration.
 
 ---
 

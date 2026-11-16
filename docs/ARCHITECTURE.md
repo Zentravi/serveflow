@@ -175,6 +175,7 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 | Business | A tenant (salon, studio, etc.). Owns services, staff, customers, appointments, payments, settings. |
 | Membership | Links a `User` to a `Business` with a `Role` (`OWNER`, `ADMIN`, `STAFF`, `VIEWER`). |
 | Role | Grants a set of permissions within that business only. |
+| Platform role | `User.platformRole` (`SUPER_ADMIN` or `USER`). Platform-level, separate from MembershipRole. |
 
 ### 6.2 Enforcement rules
 
@@ -182,8 +183,9 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 2. **Active business selection:** A user may belong to multiple businesses. The frontend can request a business context (e.g., via `POST /api/memberships/active`), but the backend independently verifies the user's membership and permissions for that business on every request before resolving `businessId`. The active business is stored server-side (in the session), not derived from client input.
 3. **Every tenant-scoped query adds `WHERE businessId = <resolved business id>`.** This is enforced by repository/service layer, not by the controller.
 4. **Cross-business access is rejected** (403) even if the record ID is guessed.
-5. **Super-admin** is a platform-level role, separate from business roles. Super-admin can read across tenants for platform operations; ordinary business users cannot.
-6. **Row-level security (RLS):** RLS on tenant-scoped tables is an optional defense-in-depth decision. The primary enforcement is application-layer scoping (rule 3). If RLS is adopted, PostgreSQL policies are added per table using `businessId` from the session context; otherwise, application-layer scoping with audit logging is the sole enforcement mechanism. This decision is reviewed during the security milestone in Phase 7.
+5. **Super-admin** is a platform-level role (`User.platformRole = SUPER_ADMIN`), separate from business roles. Super-admin can read across tenants for platform operations; ordinary business users cannot. Super-admin authorization is enforced via `SuperAdminGuard` checking `platformRole`, independent of any business membership.
+6. **Database-level tenant integrity:** Composite foreign keys prevent specific cross-business reference violations (e.g., an `Appointment` cannot reference `Staff`/`Service`/`Customer` from another business; `Payment`/`Notification` cannot reference appointments from another business). These are database-level defense-in-depth but do NOT replace application-layer authorization — tenant isolation is NOT fully database-enforced.
+7. **Row-level security (RLS):** RLS on tenant-scoped tables is an optional defense-in-depth decision. The primary enforcement is application-layer scoping (rule 3). If RLS is adopted, PostgreSQL policies are added per table using `businessId` from the session context; otherwise, application-layer scoping with audit logging is the sole enforcement mechanism. This decision is reviewed during the security milestone in Phase 7.
 
 ### 6.3 Guards (NestJS)
 

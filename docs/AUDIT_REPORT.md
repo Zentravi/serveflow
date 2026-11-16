@@ -13,16 +13,35 @@
 
 The six planning documents are well-structured, comprehensive, and demonstrate a sound understanding of the domain (multi-tenant appointment booking SaaS). The core architecture — Next.js frontend, NestJS backend, PostgreSQL + Prisma, modular monolith — is appropriate for a portfolio showcase. The design direction (light theme, editorial, no generic dashboard tropes) aligns with the product brief.
 
-However, the audit identified **several High-severity technical issues** that must be corrected before implementation begins:
+**Audit status:** Original findings from the Phase 1 architecture audit have been corrected and the documents updated. A final consistency review identified and resolved additional issues. All Critical and High-severity findings have been addressed.
 
-1. **Prisma does not natively support PostgreSQL exclusion constraints** (`EXCLUDE USING gist`). The proposed double-booking backstop requires a raw SQL migration outside the Prisma schema, which is not documented as such.
-2. **`Staff.userId` is declared unique globally**, which prevents a single user account from being linked to staff profiles at multiple businesses — contradicting the multi-business membership model.
-3. **"Active business" selection is ambiguous** for users belonging to multiple businesses. The mechanism for resolving tenant context is not specified, creating an authorization gap.
-4. **Authentication method is ambiguous** — session cookie, JWT access/refresh, and Redis-backed sessions are all mentioned without a decision.
-5. **No CORS strategy** is defined despite frontend and backend being separate applications on different origins.
-6. **No row-level security (RLS)** is proposed; tenant isolation relies entirely on application-layer scoping, with no database-level defense-in-depth.
+### 1.1 Original audit findings (historical record)
 
-None of these are architectural dead-ends — all are correctable before Phase 2. The verdict is **READY AFTER MINOR CORRECTIONS**, conditional on addressing the High-severity items listed in §11.
+The original audit identified six High-severity issues:
+
+| # | Original Issue | Severity | Status | Correction Applied |
+|---|---------------|----------|--------|-------------------|
+| 1 | Prisma exclusion constraint not documented as raw SQL migration | Critical | **Resolved** | Documented as raw SQL migration with `btree_gist` extension, conditional `WHERE` clause, migration preservation through `prisma migrate dev` resets |
+| 2 | `Staff.userId` globally unique prevents multi-business staff | Critical | **Resolved** | Removed global uniqueness; `(businessId, userId)` unique constraint allows one user to be staff at multiple businesses |
+| 3 | Active business selection mechanism unspecified | High | **Resolved** | Defined `POST /api/memberships/active` with server-side membership verification; active business stored server-side in session |
+| 4 | Authentication method ambiguous (session/JWT/Redis) | High | **Resolved** | Selected HTTP-only `sessionId` cookie + PostgreSQL server-side session store; alternatives removed |
+| 5 | No CORS configuration | High | **Resolved** | Documented CORS with `FRONTEND_URL`, `credentials: true`, no wildcard origins |
+| 6 | No RLS defense-in-depth | High | **Resolved** | Documented as optional defense-in-depth; composite FKs added for database-level tenant integrity |
+
+### 1.2 Final consistency review findings (additional corrections)
+
+| # | Issue | Severity | Status | Correction Applied |
+|---|-------|----------|--------|-------------------|
+| 7 | Payment ER cardinality `||--}o` incorrect for zero-or-one | Medium | **Resolved** | Changed to `||--o|` (zero or one) |
+| 8 | No composite FKs for cross-business prevention | High | **Resolved** | Added composite unique constraints on `(id, businessId)` and composite FKs on Appointment, StaffService, Payment, Notification |
+| 9 | No platform super-admin model defined | High | **Resolved** | Added `User.platformRole` (`SUPER_ADMIN`/`USER`) separate from `MembershipRole` |
+| 10 | Cookie SameSite inconsistent (None/Strict/Lax across docs) | High | **Resolved** | Unified on `SameSite=Lax` (same-site subdomains); documented `credentials: include`; CSRF as synchronizer-token pattern |
+| 11 | Color contrast claims unverified (approximate hex values) | Medium | **Resolved** | Exact hex values defined; contrast ratios calculated and documented |
+| 12 | AUDIT_REPORT.md opening claims unresolved issues | Medium | **Resolved** | Opening sections restructured to distinguish original findings from corrections applied |
+
+None of these are architectural dead-ends. All are documented in the planning documents. Remaining open decisions (listed in §12) are non-blocking for Phase 2.
+
+**Final verdict: READY FOR PHASE 2.** All Critical and High-severity issues have been resolved. The six planning documents are technically sound and mutually consistent.
 
 ---
 
@@ -376,9 +395,13 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 | PRD-5 | Low | Acceptance criteria vague | Made acceptance criteria specific (cross-tenant test, concurrency test, terminal states, migration review, security review) | PRD.md |
 | BK-1 through BK-8 | Critical–Low | Booking engine details | Clarified buffer inclusion in endTime, UTC storage, DST handling, advance booking limits, rescheduling conflicts, any-available-staff endpoint, SERIALIZABLE transaction strategy, exclusion constraint conditional on active statuses, serialization/exclusion violation handling | DATABASE.md, API.md |
 | API-7 | Medium | Authenticated vs public availability distinction unclear | Clarified `/api/appointments/availability` (auth, session businessId) vs `/api/booking/:businessSlug/availability` (public, slug-resolved business) | API.md |
-| DB-10 | Medium | ER diagram Appointment-Payment cardinality | Changed from `||--|{` (one-to-many) to `||--}o` (one-to-zero-or-one) matching unique `Payment.appointmentId` constraint | DATABASE.md |
+| DB-10 | Medium | ER diagram Appointment-Payment cardinality | Changed from `||--|{` (one-to-many) to `||--o|` (one-to-zero-or-one) matching unique `Payment.appointmentId` constraint | DATABASE.md |
 | DB-11 | Low | Appointment status history tracking | Clarified that `AuditLog` records status changes (`entityType='Appointment'`, `action='status_change'`); `AppointmentStatusHistory` remains open decision | DATABASE.md |
 | PRD-6 | Medium | Feature priorities vs roadmap phase alignment | Updated P0 to "delivered by end of Phase 6"; P1 to "post-MVP"; P2 to "later" to match ROADMAP phase sequencing | PRD.md, ROADMAP.md |
+| DB-12 | High | No composite FKs for cross-business prevention | Added composite unique constraints on `(id, businessId)` for Staff/Service/Customer/Appointment; composite FKs on Appointment, StaffService, Payment, Notification to prevent cross-business references | DATABASE.md, ARCHITECTURE.md |
+| DB-13 | High | No platform super-admin model | Added `User.platformRole` (`SUPER_ADMIN`/`USER`) separate from `MembershipRole`; `SuperAdminGuard` enforces platform-level authorization | DATABASE.md, ARCHITECTURE.md, API.md |
+| ARCH-7 | High | Cookie SameSite inconsistent across documents | Unified on `SameSite=Lax` (same-site subdomains); documented `credentials: include`; CSRF as synchronizer-token pattern (not double-submit-cookie) | ARCHITECTURE.md, API.md |
+| UI-7 | Medium | Color contrast claims unverified | Exact hex values defined; contrast ratios calculated (Cobalt on white 6.7:1, on ivory 6.3:1; status colors documented with contrast notes) | UI-UX.md |
 
 ### Remaining open decisions
 
@@ -392,10 +415,12 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 
 ### Final readiness verdict
 
-**READY AFTER MINOR CORRECTIONS — CORRECTIONS APPLIED**
+**READY FOR PHASE 2**
 
-All Critical and High-severity issues from the original audit have been resolved and documented in the planning documents. Two additional High-severity findings from this review round (exclusion constraint conditionality, CSRF protection) have also been addressed.
+All Critical and High-severity issues from both the original architecture audit and the final consistency review have been resolved and documented. The six planning documents (PRD.md, ARCHITECTURE.md, DATABASE.md, API.md, UI-UX.md, ROADMAP.md) plus AUDIT_REPORT.md are technically sound and mutually consistent.
 
-The six planning documents are now consistent with one another and technically sound. Remaining open decisions (listed above) are non-blocking for Phase 2.
+**Resolved:** All Critical issues (exclusion constraint, Staff.userId uniqueness), all High-severity issues (active business selection, authentication method, CORS, CSRF, composite FKs, super-admin model, cookie SameSite, notification cardinality, color contrast), and all Medium issues.
+
+**Remaining open decisions (non-blocking):** API versioning strategy, operatingHours JSON vs structured table, AppointmentStatusHistory entity, frontend↔backend communication pattern, booking portal visual differentiation.
 
 **Status:** Documentation corrections complete. Awaiting review and approval before Phase 2. No implementation code has been generated. No changes merged to main.

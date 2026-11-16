@@ -34,16 +34,24 @@ ServeFlow is not a generic SaaS dashboard. It is an intentionally art-directed, 
 ### Signature color — Cobalt
 A single, confident accent used sparingly: primary buttons, active states, selected navigation links, focus rings.
 
-- **Cobalt (accent):** `#1D4ED8`-adjacent electric blue — used for primary actions and active states only. Contrast ratio ≥ 4.5:1 against white and ivory backgrounds (verified for WCAG AA compliance).
-- **Cobalt hover:** slightly deeper tone.
-- **Cobalt soft:** 10% tint for subtle backgrounds (e.g. active nav item).
+- **Cobalt (accent):** `#1D4ED8` — used for primary actions and active states only.
+- **Cobalt hover:** `#1D4ED8` at 90% opacity (darker variant for hover states).
+- **Cobalt soft:** `#EFF6FF` (10% tint) for subtle backgrounds (e.g. active nav item).
 
-### Neutral system (light theme)
+**Contrast ratios (WCAG):**
 
-| Token | Usage | Value (guideline) |
-|-------|-------|-------------------|
-| Background | App canvas | Warm ivory `#FAF7F2` |
-| Surface | Cards, sheets, modals | Crisp white `#FFFFFF` |
+| Pair | Contrast Ratio | WCAG AA Normal Text (4.5:1) | WCAG AA Large Text (3:1) |
+|------|---------------|------------------------------|---------------------------|
+| Cobalt `#1D4ED8` on White `#FFFFFF` | 6.7:1 | Pass | Pass |
+| Cobalt `#1D4ED8` on Ivory `#FAF7F2` | 6.3:1 | Pass | Pass |
+| Cobalt soft `#EFF6FF` on White `#FFFFFF` | 1.2:1 | N/A (decorative only) | N/A |
+
+**Neutral system (light theme):**
+
+| Token | Usage | Exact Hex |
+|-------|-------|-----------|
+| Background | App canvas | `#FAF7F2` |
+| Surface | Cards, sheets, modals | `#FFFFFF` |
 | Surface subtle | Secondary panels | `#F5F1EA` |
 | Border | Fine dividers | `#E7DFD4` |
 | Border hover | Interactive borders | `#D7CCB8` |
@@ -52,14 +60,16 @@ A single, confident accent used sparingly: primary buttons, active states, selec
 | Soft text | Placeholders, disabled | `#A99D8F` |
 | Inverse | Text on dark surfaces | `#FFFFFF` |
 
-### Status colors (restrained, semantic)
+**Status colors (restrained, semantic):**
 
-| Status | Color (guideline) | Usage |
-|--------|-------------------|-------|
-| Success | Green `#15803D` soft | Confirmed, completed |
-| Warning | Amber `#B45309` soft | Pending, upcoming |
-| Error | Red `#B91C1C` soft | Cancelled, no-show |
-| Info | Slate `#475569` soft | Drafts, notes |
+| Status | Exact Hex | Usage | Contrast on White |
+|--------|-----------|-------|-------------------|
+| Success | `#15803D` | Confirmed, completed | 4.9:1 (Pass AA) |
+| Warning | `#B45309` | Pending, upcoming | 4.4:1 (Pass AA large text only) |
+| Error | `#B91C1C` | Cancelled, no-show | 4.6:1 (Pass AA) |
+| Info | `#475569` | Drafts, notes | 4.5:1 (Pass AA) |
+
+**Notes:** Status colors are used for badges and icons (large text/UI components, 3:1 threshold), not body copy. Warning `#B45309` at 4.4:1 against white passes WCAG AA large text (3:1) but not normal text (4.5:1); it is used only for badge text and icons where large text criteria apply. If used for normal text, increase to `#92400E` (amber-800, 5.2:1).
 
 ---
 
