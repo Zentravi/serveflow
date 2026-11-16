@@ -13,13 +13,13 @@
 | Item | Convention |
 |------|------------|
 | Protocol | HTTPS / HTTP, JSON |
-| Base path | `/api/v1/v1` |
+| Base path | `/api/v1` |
 | Auth | HTTP-only, Secure, SameSite=Lax `sessionId` cookie. Server-side session store (PostgreSQL). No tokens in URLs or localStorage. No JWT access/refresh pattern. |
 | Business context | Resolved server-side from the caller's verified membership. Client-supplied `businessId` is ignored/untrusted for tenant-scoped resources. Active business is set via `POST /api/memberships/active` and validated server-side on every request. |
 | Errors | Standard envelope (see §2). |
 | Dates | ISO 8601 UTC strings (`YYYY-MM-DDTHH:mm:ss.sssZ`). |
 | Pagination | `page` (default 1) and `limit` (default 20, max 100) query params; response includes `meta { total, page, limit, totalPages }`. |
-| Versioning | Versioned as `/api/v1/v1` from the first endpoint. All API paths are prefixed with `/api/v1/v1`. |
+| Versioning | Versioned as `/api/v1` from the first endpoint. All API paths are prefixed with `/api/v1`. |
 
 ---
 
@@ -47,7 +47,7 @@
 
 ## 3. Authentication endpoints
 
-### POST /api/auth/register
+### POST /api/v1/auth/register
 Register a new user and optionally create a first business during onboarding.
 
 **Body**
@@ -64,20 +64,20 @@ Register a new user and optionally create a first business during onboarding.
 
 **Response 201** `{ user: { id, email, name }, requiresEmailVerification: true }`
 
-### POST /api/auth/login
+### POST /api/v1/auth/login
 **Body** `{ email, password }`  
 **Response 200** `{ user, activeBusiness }` — sets `sessionId` HTTP-only cookie.
 
-### POST /api/auth/logout
+### POST /api/v1/auth/logout
 Deletes server-side session and clears `sessionId` cookie. **Response 204**.
 
-### POST /api/auth/verify-email
+### POST /api/v1/auth/verify-email
 **Body** `{ token }` — verifies email via time-limited token.
 
-### POST /api/auth/forgot-password
+### POST /api/v1/auth/forgot-password
 **Body** `{ email }` — issues single-use password-reset token (emailed if provider configured).
 
-### POST /api/auth/reset-password
+### POST /api/v1/auth/reset-password
 **Body** `{ token, password }` — resets password using valid token.
 
 ---
@@ -214,7 +214,7 @@ Availability query params: `date`, `staffId`, `serviceId`. `businessId` resolved
 
 ### Create appointment (staff side)
 
-**POST /api/appointments**
+**POST /api/v1/appointments**
 ```json
 {
   "customerId": "cus_123",
@@ -253,7 +253,7 @@ Availability query params: `date`, `staffId`, `serviceId`. `businessId` resolved
 
 ### Public booking submission
 
-**POST /api/booking/:businessSlug/appointments**
+**POST /api/v1/booking/:businessSlug/appointments**
 ```json
 {
   "serviceId": "svc_789",
@@ -289,6 +289,6 @@ Cross-tenant access attempt → `403`. Missing membership for the business → `
 ## 7. OpenAPI/Swagger
 
 - NestJS `nestjs/swagger` decorators on every controller and DTO.
-- Swagger UI at `GET /api/docs` (dev/staging only; guarded in production).
-- OpenAPI JSON at `GET /api/docs/json`.
+- Swagger UI at `GET /api/v1/docs` (dev/staging only; guarded in production).
+- OpenAPI JSON at `GET /api/v1/docs/json`.
 - DTOs use `class-validator` + `class-transformer`; Zod schemas shared where frontend and backend need identical validation.

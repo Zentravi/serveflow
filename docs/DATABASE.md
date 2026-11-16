@@ -92,6 +92,7 @@ model User {
 
   memberships               Membership[]
   staffProfiles             Staff[]
+  auditLogs                 AuditLog[]
 }
 
 model Business {
@@ -118,6 +119,7 @@ model Business {
   payments          Payment[]
   notifications     Notification[]
   availabilityExceptions AvailabilityException[]
+  auditLogs                AuditLog[]
 }
 
 model Membership {
@@ -229,7 +231,6 @@ model Customer {
 
   business   Business   @relation(fields: [businessId], references: [id])
   appointments Appointment[]
-  payments   Payment[]
 
   @@unique([id, businessId])
   @@unique([businessId, email], name: "Customer_businessId_email_key")
@@ -259,7 +260,7 @@ model Appointment {
   customer   Customer?   @relation(fields: [customerId, businessId], references: [id, businessId])
   staff      Staff       @relation(fields: [staffId, businessId], references: [id, businessId])
   service    Service     @relation(fields: [serviceId, businessId], references: [id, businessId])
-  payments   Payment[]
+  payment    Payment?    @relation(fields: [], references: []) // derived via appointmentId unique constraint
   notifications Notification[]
 
   @@unique([id, businessId])

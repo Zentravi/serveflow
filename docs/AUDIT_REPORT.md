@@ -41,7 +41,7 @@ The original audit identified six High-severity issues:
 
 None of these are architectural dead-ends. All are documented in the planning documents. Remaining open decisions (listed in §12) are non-blocking for Phase 2.
 
-**Final verdict: READY FOR PHASE 2.** All Critical and High-severity issues have been resolved. The six planning documents are technically sound and mutually consistent.
+**[Historical snapshot]** Early draft verdict: "READY AFTER MINOR CORRECTIONS" — superseded by the final verdict in §12.
 
 ---
 
@@ -415,19 +415,20 @@ All corrections C1–C9 from §11 of the original audit have been applied to the
 | ID | Severity | Issue | Status | Notes |
 |----|----------|-------|--------|-------|
 | ARCH-5 | Medium | Frontend↔backend communication pattern | Partially resolved | Direct browser-to-API with CORS specified (separate origins: `web.serveflow.app` → `api.serveflow.app`). Next.js server-side proxy (BFF pattern) remains an alternative not yet ruled out. |
-| ARCH-6 | Medium | API versioning strategy | Resolved | All endpoints versioned as `/api/v1` from the first endpoint. Documented in API.md conventions table and ARCHITECTURE.md §4. |
 | DB-4 | Medium | `operatingHours` as JSON vs. structured table | Open | JSON kept for flexibility; structured `BusinessWorkingHours` table can be added later |
 | DB-6 | Medium | `AppointmentStatusHistory` entity | Open | AuditLog covers status changes; dedicated entity can be added if needed |
 | UI-6 | Low | Booking portal visual differentiation | Open | Described as "lighter, marketing-oriented"; specific component subset not defined |
 
 ### Final readiness verdict
 
-**READY FOR PHASE 2**
+**[Historical snapshot]** Earlier draft verdict: "READY AFTER MINOR CORRECTIONS" — superseded by this final verdict.
+
+**[CURRENT VERDICT: READY FOR PHASE 2]**
 
 All Critical and High-severity issues from both the original architecture audit and the final consistency review have been resolved and documented. The six planning documents (PRD.md, ARCHITECTURE.md, DATABASE.md, API.md, UI-UX.md, ROADMAP.md) plus AUDIT_REPORT.md are technically sound and mutually consistent.
 
-**Resolved:** All Critical issues (exclusion constraint, Staff.userId uniqueness), all High-severity issues (active business selection, authentication method, CORS, CSRF, composite FKs, super-admin model, cookie SameSite, notification cardinality, color contrast), and all Medium issues.
+**Resolved:** All Critical issues (exclusion constraint, Staff.userId uniqueness), all High-severity issues (active business selection, authentication method, CORS, CSRF, composite FKs, super-admin model, cookie SameSite, notification cardinality, color contrast), and all applicable Medium issues.
 
-**Remaining open decisions (non-blocking):** API versioning strategy, operatingHours JSON vs structured table, AppointmentStatusHistory entity, frontend↔backend communication pattern, booking portal visual differentiation.
+**Remaining open decisions (non-blocking):** Frontend↔backend communication pattern, operatingHours JSON vs structured table, AppointmentStatusHistory entity, booking portal visual differentiation.
 
-**Status:** Documentation corrections complete. Awaiting review and approval before Phase 2. No implementation code has been generated. No changes merged to main.
+**Status:** Documentation corrections complete. Awaiting review and approval before Phase 2. No implementation code has been generated. No schema validation or automated tests have been run. No `schema.prisma` file exists; Prisma snippets in DATABASE.md are illustrative only. No changes merged to main.

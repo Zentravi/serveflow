@@ -13,7 +13,7 @@ ServeFlow is a modular monolith composed of:
 - **Frontend** — Next.js App Router (React, TypeScript, Tailwind CSS, shadcn/ui, Framer Motion). Serves three interfaces from one app: the business dashboard, the public customer booking portal, and the protected super-admin interface.
 - **Backend** — NestJS REST API with Swagger/OpenAPI documentation. Modular monolith: one deployable unit, cleanly separated domain modules.
 - **Database** — PostgreSQL with Prisma ORM. Single database, schema-per-concern with tenant-scoped tables.
-- **Cache / job queue** — Redis backing BullMQ for background jobs (notifications, reminders).
+- **Cache / job queue** — Redis + BullMQ deferred to Phase 6; not a Phase 2 / MVP dependency.
 - **Infrastructure** — Docker + docker-compose for local dev; GitHub Actions for CI.
 
 Frontend and backend live in separate applications within a monorepo. No microservices are introduced unnecessarily.
@@ -35,7 +35,7 @@ serveflow/
 ├── docs/                    # PRD, ARCHITECTURE, DATABASE, API, UI-UX, ROADMAP
 ├── docker/
 │   ├── postgres/
-│   └── redis/
+│   └── redis/          # optional; added in Phase 6 with BullMQ
 ├── docker-compose.yml
 ├── package.json             # Root (turbo, workspaces)
 ├── turbo.json
@@ -141,7 +141,7 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 - **Cookie behavior for same-site cross-origin requests:** Frontend (`web.serveflow.app`) and backend (`api.serveflow.app`) are different origins but the **same site** (`serveflow.app`). The `sessionId` cookie is set with `SameSite=Lax; Secure; HttpOnly`, so it is sent on same-site cross-origin requests (e.g., `web.serveflow.app` → `api.serveflow.app`) but not on cross-site requests. `SameSite=None` is not required because the domains are same-site, not cross-site.
 - **CORS:** NestJS backend configures CORS to allow requests only from the configured frontend origin(s) (`FRONTEND_URL` env var), with `credentials: true` so cookies are sent. No wildcard origins.
 - Business context: resolved server-side from the authenticated user's active membership; never from a client-supplied `businessId`.
-- OpenAPI/Swagger docs served at `/api/docs` (backend) for contract visibility.
+- OpenAPI/Swagger docs served at `/api/v1/docs` (backend) for contract visibility.
 
 ---
 
@@ -229,7 +229,7 @@ Each module owns: controller (HTTP), service (business logic), repository/Prisma
 
 ## 9. Deployment & environments
 
-- **Local:** `docker compose up` (PostgreSQL, Redis, api, web).
+- **Local:** `docker compose up` (PostgreSQL, api, web). Redis is optional and added in Phase 6 with BullMQ.
 - **CI:** GitHub Actions — lint, type-check, unit tests, build.
 - **Env config:** `.env.example` documents all required variables; `.env` is gitignored.
 - No automatic deployment to production; this is a portfolio/engineering showcase.
